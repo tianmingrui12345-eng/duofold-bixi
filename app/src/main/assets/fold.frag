@@ -93,11 +93,15 @@ void main() {
     float depth=1920.0-gap;
     if(depth<=0.00001) {gl_FragColor=vec4(0.0,0.0,0.0,ramp);return;}
 
-    // Height response curve, chosen by the user: linear starts moving immediately, cos is the
-    // geometric foreshortening (flat near zero, so the first degrees barely move).
+    // Height response curve, chosen by the user. Pure cos is flat at 0 degrees while the
+    // perspective term (sin) is already shrinking, so the image dips for the first ~8 degrees
+    // before the height term catches up. Blending 25% linear into it removes the dip while
+    // keeping the cosine's slow start.
+    // shortcut: fixed 0.75 blend, expose a slider if anyone wants the raw curve back.
+    float linearProgress=clamp(tilt/1.3962634,0.0,1.0);
     float foldProgress=uHeightCurve<0.5
-            ? clamp(tilt/1.3962634,0.0,1.0)
-            : (1.0-cos(tilt));
+            ? linearProgress
+            : mix(linearProgress,1.0-cos(tilt),0.75);
     float vertical=1.0-uHeightBias*foldProgress;
     d*=vertical;
     vec2 hitP=vec2(p.x,d)*(1920.0/depth);

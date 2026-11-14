@@ -154,11 +154,11 @@ public final class MainActivity extends Activity {
         // 0% keeps the height, -100% makes it grow as the fold deepens.
         Ui.add(this,tuning,Ui.text(this,t("折叠时上半屏高度：+100% 越折越矮（原效果）· 0% 不变 · -100% 越折越高","Leaf height: +100% shrinks, 0% constant, -100% grows"),12,Ui.ACCENT),14,0);
         slider(tuning,t("高度变化","Height response"),-100,100,prefs.getFloat("heightBias",1f)*100,value->{prefs.edit().putFloat("heightBias",value/100f).apply();EffectPrefs.set(this,value/100f);},"%");
-        Ui.add(this,tuning,Ui.text(this,t("高度变化曲线：线性起手就动 · 余弦是几何投影（前几度几乎不动）","Height curve: linear responds at once, cosine is the geometric foreshortening"),12,Ui.MUTED),10,4);
+        Ui.add(this,tuning,Ui.text(this,t("高度变化曲线：线性起手就动 · 余弦慢起手（已补偿，不会先下沉）","Height curve: linear responds at once; cosine starts slowly without the initial dip"),12,Ui.MUTED),10,4);
         RadioGroup heightCurve=new RadioGroup(this);
         heightCurve.setOrientation(LinearLayout.HORIZONTAL);
         float storedCurve=prefs.getFloat("heightCurve",0f);
-        String[] curveLabels={t("线性","Linear"),t("余弦","Cosine")};
+        String[] curveLabels={t("线性","Linear"),t("余弦（平滑起手）","Cosine (smoothed)")};
         for(int i=0;i<2;i++) {
             RadioButton option=new RadioButton(this);
             option.setId(View.generateViewId());option.setTag(i);
