@@ -70,7 +70,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
         targetForward=forwardRadians;targetSide=sideRadians;targetIntensity=intensity;
         requestRender();
     }
-    public FoldModel.State inputState() { return drawnState; }
     public void setEffectStyle(EffectStyle style) {
         effectStyle=style==null?EffectStyle.CLASSIC:style;requestRender();
     }

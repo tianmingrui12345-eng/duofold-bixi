@@ -33,7 +33,6 @@ import java.util.List;
  * "all apps except the ticked ones" and "only the ticked apps".
  */
 public final class AppPickerActivity extends Activity {
-    private static final int BG=0xff101216,FG=0xfff0f2f7,MUTED=0xff9299a6,ACCENT=0xffbfd2ff;
 
     private final List<App> apps=new ArrayList<>();
     private final List<App> shown=new ArrayList<>();
@@ -53,19 +52,15 @@ public final class AppPickerActivity extends Activity {
 
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BG);
+        root.setBackgroundColor(Ui.BG);
         int pad=dp(16);
         root.setPadding(pad,dp(20),pad,0);
         // Keep the title clear of the status bar and the list clear of the gesture bar.
-        root.setOnApplyWindowInsetsListener((v,insets)-> {
-            int top=insets.getSystemWindowInsetTop(),bottom=insets.getSystemWindowInsetBottom();
-            v.setPadding(pad,dp(20)+top,pad,bottom);
-            return insets;
-        });
+        Ui.applyInsets(root,pad,dp(20),0);
 
         TextView title=new TextView(this);
         title.setText(UiText.t("哪些应用生效","Where the effect runs"));
-        title.setTextColor(FG);
+        title.setTextColor(Ui.FG);
         title.setTextSize(21);
         title.setPadding(0,0,0,dp(10));
         root.addView(title);
@@ -73,7 +68,7 @@ public final class AppPickerActivity extends Activity {
         TextView note=new TextView(this);
         note.setText(UiText.t("锁屏和本应用始终生效，不受这里影响。",
                 "The lock screen and this app are always included."));
-        note.setTextColor(MUTED);
+        note.setTextColor(Ui.MUTED);
         note.setTextSize(12);
         note.setPadding(0,0,0,dp(12));
         root.addView(note);
@@ -92,15 +87,15 @@ public final class AppPickerActivity extends Activity {
         root.addView(modes);
 
         hint=new TextView(this);
-        hint.setTextColor(ACCENT);
+        hint.setTextColor(Ui.ACCENT);
         hint.setTextSize(12);
         hint.setPadding(0,dp(4),0,dp(10));
         root.addView(hint);
 
         search=new EditText(this);
         search.setHint(UiText.t("搜索应用","Search apps"));
-        search.setHintTextColor(MUTED);
-        search.setTextColor(FG);
+        search.setHintTextColor(Ui.MUTED);
+        search.setTextColor(Ui.FG);
         search.setSingleLine(true);
         root.addView(search,new LinearLayout.LayoutParams(-1,-2));
         search.addTextChangedListener(new TextWatcher() {
@@ -131,12 +126,12 @@ public final class AppPickerActivity extends Activity {
         RadioButton button=new RadioButton(this);
         button.setId(View.generateViewId());
         button.setText(text);
-        button.setTextColor(FG);
+        button.setTextColor(Ui.FG);
         button.setTextSize(14);
         return button;
     }
 
-    private int dp(int value) {return Math.round(value*getResources().getDisplayMetrics().density);}
+    private int dp(int value) {return Ui.dp(this,value);}
 
     private void refreshHint() {
         hint.setText(AppFilter.summary());
@@ -218,10 +213,10 @@ public final class AppPickerActivity extends Activity {
             texts.setOrientation(LinearLayout.VERTICAL);
             texts.setPadding(dp(12),0,0,0);
             TextView label=new TextView(AppPickerActivity.this);
-            label.setTextColor(FG);
+            label.setTextColor(Ui.FG);
             label.setTextSize(15);
             TextView pkg=new TextView(AppPickerActivity.this);
-            pkg.setTextColor(MUTED);
+            pkg.setTextColor(Ui.MUTED);
             pkg.setTextSize(11);
             texts.addView(label);
             texts.addView(pkg);

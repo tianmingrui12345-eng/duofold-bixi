@@ -58,7 +58,14 @@ public final class AppFilter {
     }
 
     /** True when the effect may be shown over this package. */
-    public static boolean allows(String pkg) {
+    public static boolean allows(String pkg) {return allows(mode,selected,pkg);}
+
+    /**
+     * The decision on its own, so a test can check it without a Context or a running service.
+     * An unknown package (null) fails open: showing the effect everywhere is better than the
+     * effect silently vanishing because the window list was not ready yet.
+     */
+    static boolean allows(int mode,Set<String> selected,String pkg) {
         if(pkg==null || pkg.isEmpty()) return true;
         for(String allowed:ALWAYS_ALLOWED) if(allowed.equals(pkg)) return true;
         boolean marked=selected.contains(pkg);
