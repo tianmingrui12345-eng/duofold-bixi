@@ -154,6 +154,28 @@ public final class MainActivity extends Activity {
         // 0% keeps the height, -100% makes it grow as the fold deepens.
         Ui.add(this,tuning,Ui.text(this,t("折叠时上半屏高度：+100% 越折越矮（原效果）· 0% 不变 · -100% 越折越高","Leaf height: +100% shrinks, 0% constant, -100% grows"),12,Ui.ACCENT),14,0);
         slider(tuning,t("高度变化","Height response"),-100,100,prefs.getFloat("heightBias",1f)*100,value->{prefs.edit().putFloat("heightBias",value/100f).apply();EffectPrefs.set(this,value/100f);},"%");
+        Ui.add(this,tuning,Ui.text(this,t("高度变化曲线：线性起手就动 · 余弦是几何投影（前几度几乎不动）","Height curve: linear responds at once, cosine is the geometric foreshortening"),12,Ui.MUTED),10,4);
+        RadioGroup heightCurve=new RadioGroup(this);
+        heightCurve.setOrientation(LinearLayout.HORIZONTAL);
+        float storedCurve=prefs.getFloat("heightCurve",0f);
+        String[] curveLabels={t("线性","Linear"),t("余弦","Cosine")};
+        for(int i=0;i<2;i++) {
+            RadioButton option=new RadioButton(this);
+            option.setId(View.generateViewId());option.setTag(i);
+            option.setText(curveLabels[i]);option.setTextSize(13);option.setTextColor(Ui.FG);
+            option.setGravity(Gravity.CENTER);
+            option.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+            heightCurve.addView(option,new RadioGroup.LayoutParams(0,Ui.dp(this,48),1f));
+            if((int)storedCurve==i)heightCurve.check(option.getId());
+        }
+        heightCurve.setOnCheckedChangeListener((group,id)-> {
+            View chosen=group.findViewById(id);
+            if(chosen==null||!(chosen.getTag() instanceof Integer))return;
+            int value=(Integer)chosen.getTag();
+            prefs.edit().putFloat("heightCurve",value).apply();
+            EffectPrefs.setHeightCurve(this,value);
+        });
+        tuning.addView(heightCurve,new LinearLayout.LayoutParams(-1,-2));
         Ui.add(this,tuning,Ui.text(this,t("左右两条边的倾斜：+60% 上边张开（上宽下窄）· 0% 两条边竖直 · -60% 上边收拢（上窄下宽）","Side edge slant: +60% wider on top, 0% vertical, -60% narrower on top"),12,Ui.ACCENT),14,0);
         slider(tuning,t("左右边倾斜","Side slant"),-60,60,prefs.getFloat("sideSlant",0f)*100,value->{prefs.edit().putFloat("sideSlant",value/100f).apply();EffectPrefs.setSlant(this,value/100f);},"%");
         Ui.add(this,tuning,Ui.text(this,t("圆角：半径（屏幕短边占比）与圆度（数值越小越圆）","Corner: radius (% of short side) and roundness (smaller = rounder)"),12,Ui.ACCENT),14,0);

@@ -14,6 +14,7 @@ uniform vec2 uAngles;
 uniform vec2 uSizePoints;
 uniform float uIntensity;
 uniform float uHeightBias;
+uniform float uHeightCurve;   // 0 = linear in fold progress, 1 = 1 - cos(tilt)
 uniform float uSideSlant;
 uniform float uLandscape;
 uniform float uFlip;
@@ -92,10 +93,11 @@ void main() {
     float depth=1920.0-gap;
     if(depth<=0.00001) {gl_FragColor=vec4(0.0,0.0,0.0,ramp);return;}
 
-    // Height response: linear in the fold progress, not in cos(tilt). cos is flat near zero
-    // (1 - θ²/2), which made the sheet sit still for the first degrees and then jump, reading as
-    // "dips down, then stretches". Linear starts moving immediately and monotonically.
-    float foldProgress=clamp(tilt/1.3962634,0.0,1.0);
+    // Height response curve, chosen by the user: linear starts moving immediately, cos is the
+    // geometric foreshortening (flat near zero, so the first degrees barely move).
+    float foldProgress=uHeightCurve<0.5
+            ? clamp(tilt/1.3962634,0.0,1.0)
+            : (1.0-cos(tilt));
     float vertical=1.0-uHeightBias*foldProgress;
     d*=vertical;
     vec2 hitP=vec2(p.x,d)*(1920.0/depth);

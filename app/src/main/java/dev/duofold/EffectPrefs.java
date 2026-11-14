@@ -20,6 +20,8 @@ public final class EffectPrefs {
     public static volatile int captureWidth=0;
     /** Corner radius as a fraction of the panel's short side. */
     public static volatile float cornerRadius=0.095f;
+    /** 0 = linear in fold progress, 1 = 1 - cos(tilt). */
+    public static volatile float heightCurve=0f;
     /** Superellipse exponent: 2 = ellipse, larger = squarer. */
     public static volatile float cornerPower=3.2f;
     private EffectPrefs(){}
@@ -30,6 +32,7 @@ public final class EffectPrefs {
         range=Math.max(15f,Math.min(180f,prefs.getFloat("range",180f)));
         intensity=Math.max(0.2f,Math.min(1f,prefs.getFloat("intensity",1f)));
         captureWidth=prefs.getInt("captureWidth",0);
+        heightCurve=prefs.getFloat("heightCurve",0f);
         cornerRadius=Math.max(0.01f,Math.min(0.30f,prefs.getFloat("cornerRadius",0.095f)));
         cornerPower=Math.max(2f,Math.min(8f,prefs.getFloat("cornerPower",3.2f)));
     }
@@ -57,6 +60,11 @@ public final class EffectPrefs {
         captureWidth=Math.max(0,value);
         context.getApplicationContext().getSharedPreferences("duo",0)
                 .edit().putInt("captureWidth",captureWidth).apply();
+    }
+    public static void setHeightCurve(Context context,float value){
+        heightCurve=value;
+        context.getApplicationContext().getSharedPreferences("duo",0)
+                .edit().putFloat("heightCurve",heightCurve).apply();
     }
     public static void setCornerRadius(Context context,float value){
         cornerRadius=Math.max(0.01f,Math.min(0.30f,value));
