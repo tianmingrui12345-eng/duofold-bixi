@@ -1,0 +1,56 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'dev.duofold'
+    compileSdk 35
+    useLibrary 'android.test.runner'
+    useLibrary 'android.test.base'
+    defaultConfig {
+        applicationId 'dev.duofold'
+        minSdk 29
+        targetSdk 35
+        versionCode 48
+        versionName '0.2'
+        testInstrumentationRunner 'android.test.InstrumentationTestRunner'
+    }
+    flavorDimensions 'api'
+    productFlavors {
+        compat {
+            dimension 'api'
+            minSdk 29
+        }
+        standard {
+            dimension 'api'
+            minSdk 34
+        }
+    }
+    buildFeatures { aidl true; buildConfig true }
+    testOptions { unitTests.returnDefaultValues = true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    // Never silently sign an update with a newly generated debug key.
+    // Provide the original release keystore explicitly; otherwise assemble unsigned APKs.
+    signingConfigs {
+        release {
+            if (project.hasProperty('duofoldKeystore')) {
+                storeFile file(project.property('duofoldKeystore'))
+                storePassword System.getenv('DUOFOLD_STORE_PASSWORD') ?: 'android'
+                keyAlias project.findProperty('duofoldKeyAlias') ?: 'androiddebugkey'
+                keyPassword System.getenv('DUOFOLD_KEY_PASSWORD') ?: storePassword
+            }
+        }
+    }
+    buildTypes {
+        debug
+        release {
+            minifyEnabled false
+            if (project.hasProperty('duofoldKeystore')) signingConfig signingConfigs.release
+        }
+    }
+}
+dependencies {
+    implementation project(':motion')
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+    implementation 'androidx.annotation:annotation:1.9.1'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'junit:junit:4.13.2'
+}
