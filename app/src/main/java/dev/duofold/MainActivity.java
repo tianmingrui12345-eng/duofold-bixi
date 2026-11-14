@@ -36,6 +36,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences prefs;
     private TextView bridgeStatus,accessStatus,liveStatus,progressText;
     private Button start;
+    private TextView appFilterStatus;
     private boolean pendingStart;
     private final Runnable update=new Runnable() {
         @Override public void run() { refresh();handler.postDelayed(this,400); }
@@ -88,6 +89,14 @@ public final class MainActivity extends Activity {
         add(setup,text(Build.VERSION.SDK_INT>=34
                 ?t("三指同时触屏或使用通知栏按钮，随时停止效果。","Stop anytime with a three-finger touch or the notification button.")
                 :t("使用通知栏按钮，随时停止效果。","Stop anytime with the notification button."),12,ACCENT),12,0);
+
+        LinearLayout perApp=card(body);
+        perApp.addView(text(t("按应用开启",  "Per-app control"),19,FG));
+        add(perApp,text(t("默认所有应用都生效，可以挑出不想生效的应用，或者反过来只让选中的应用生效。锁屏与本应用始终生效。",
+                "By default every app gets the effect; you can exclude some, or switch to allowing only the ones you pick. The lock screen and this app are always included."),12,MUTED),10,0);
+        appFilterStatus=text(AppFilter.summary(),13,ACCENT);
+        add(perApp,appFilterStatus,10,0);
+        button(perApp,t("选择应用","Choose apps"),()->startActivity(new Intent(this,AppPickerActivity.class)),true);
 
         LinearLayout tuning=card(body);
         tuning.addView(text(t("调到舒服的手感","Tune the feel"),19,FG));
@@ -183,7 +192,11 @@ public final class MainActivity extends Activity {
 
         refresh();
     }
-    @Override protected void onResume() {super.onResume();client.connect();handler.post(update);}
+    @Override protected void onResume() {
+        super.onResume();client.connect();handler.post(update);
+        AppFilter.load(this);
+        if(appFilterStatus!=null) appFilterStatus.setText(AppFilter.summary());
+    }
     @Override protected void onPause() {handler.removeCallbacks(update);super.onPause();}
     private void refresh() {
         if(bridgeStatus==null)return;

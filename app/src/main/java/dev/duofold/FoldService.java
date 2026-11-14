@@ -164,6 +164,7 @@ public final class FoldService extends AccessibilityService {
         }
         active=true;captureReady=false;generation++;lastFrame=0;frames=0;
         touchCount=0;
+        AppFilter.load(this);
         started=SystemClock.uptimeMillis();
         intensity=getSharedPreferences("duo",0).getFloat("intensity",1);
         dev.duofold.EffectPrefs.load(this);
@@ -216,6 +217,8 @@ public final class FoldService extends AccessibilityService {
     private static final float FLAT_OFFSET_DEGREES=2f;
     private volatile float lastForward;
     private volatile boolean layerWanted;
+    /** Package currently in front; drives the per-app allow list. */
+    private volatile String foregroundPkg;
     /** When the layer was last attached: guards against attach/release flapping. */
     private long attachedAt;
 
@@ -265,7 +268,7 @@ public final class FoldService extends AccessibilityService {
         boolean folded=layerWanted
                 ? (shown>RELEASE_DEGREES || lastForward>RELEASE_DEGREES || now-attachedAt<600)
                 : (shown>ATTACH_DEGREES && lastForward>ATTACH_DEGREES);
-        boolean want=folded && innerDisplayActive();
+        boolean want=folded && innerDisplayActive() && AppFilter.allows(foregroundPkg);
         if(want!=layerWanted) android.util.Log.i("DuoFold","sync want="+want
                 +" forward="+lastForward+" inner="+innerDisplayActive()+" host="+(glassHost!=null));
         if(want) {
@@ -515,6 +518,11 @@ public final class FoldService extends AccessibilityService {
         // so the effect silently disappeared in every third-party app. Re-arm it here.
         if(event.getEventType()==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             CharSequence pkg=event.getPackageName();
+            String name=pkg==null?null:pkg.toString();
+            if(active && name!=null && !name.equals(foregroundPkg)) {
+                foregroundPkg=name;
+                main.post(this::syncLayer);
+            }
             android.util.Log.i("DuoFold","foreground="+pkg+" active="+active+" want="+layerWanted
                     +" host="+(glassHost!=null)+" frames="+frames);
             if(active && layerWanted) main.postDelayed(this::restartIfStalled,600);
