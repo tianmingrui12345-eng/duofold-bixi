@@ -554,8 +554,7 @@ public final class FoldService extends AccessibilityService {
         PendingIntent stop=PendingIntent.getBroadcast(this,1,new Intent(this,StopReceiver.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         PendingIntent open=PendingIntent.getActivity(this,2,new Intent(this,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification notification=new Notification.Builder(this,"duo_live").setSmallIcon(R.drawable.ic_fold)
-                .setContentTitle(t("Duo Fold 正在运行","Duo Fold is running")).setContentText(Build.VERSION.SDK_INT>=34
-                        ?t("倾斜手机展开 · 三指触屏退出","Tilt to unfold · three-finger touch to exit"):t("倾斜手机展开 · 点此返回或使用停止按钮","Tilt to unfold · tap to return or use the stop button"))
+                .setContentTitle(t("Duo Fold 正在运行","Duo Fold is running"))
                 .setOngoing(true).setContentIntent(open).addAction(new Notification.Action.Builder(null,t("停止","Stop"),stop).build()).build();
         nm.notify(81,notification);
     }
