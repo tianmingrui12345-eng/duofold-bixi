@@ -167,6 +167,14 @@ public final class FoldService extends AccessibilityService {
                 float scale=ceiling/Math.max(15f,dev.duofold.EffectPrefs.range);
                 float unfolded=Math.max(0f,forwardDegrees-FLAT_OFFSET_DEGREES);
                 float effective=Math.min(ceiling,unfolded*scale);
+                // Past 60 degrees of physical fold the effect closes the remaining gap faster,
+                // so the last part of the fold is not dead travel. Nothing below the knee changes.
+                // shortcut: fixed knee/strength, expose them if the feel needs tuning.
+                if(unfolded>TAIL_KNEE_DEGREES) {
+                    float tail=Math.min(1f,(unfolded-TAIL_KNEE_DEGREES)/(180f-TAIL_KNEE_DEGREES));
+                    float ease=1f-(1f-tail)*(1f-tail);
+                    effective=Math.min(ceiling,effective+(ceiling-effective)*ease*TAIL_BOOST);
+                }
                 // The layer's on/off decision must follow the real hinge angle: using the
                 // scaled value kept the layer attached (and the screen untouchable) whenever
                 // the max-tilt preset was small.
@@ -199,6 +207,10 @@ public final class FoldService extends AccessibilityService {
      * first 2 degrees are treated as flat. Everything is measured from there.
      */
     private static final float FLAT_OFFSET_DEGREES=2f;
+    /** Physical fold angle where the effect starts closing the remaining gap faster. */
+    private static final float TAIL_KNEE_DEGREES=60f;
+    /** How much of the remaining gap that tail closes, 0 = none, 1 = all of it. */
+    private static final float TAIL_BOOST=0.6f;
     private volatile float lastForward;
     private volatile boolean layerWanted;
     /** Package currently in front; drives the per-app allow list. */
