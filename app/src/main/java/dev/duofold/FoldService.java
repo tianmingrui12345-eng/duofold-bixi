@@ -139,7 +139,7 @@ public final class FoldService extends AccessibilityService {
     public float progress() { return progress; }
     public long frames() { return frames; }
     public String diagnostics() { return "active="+active+" ready="+captureReady+" intercept="+intercepting
-            +" size="+(view==null?"none":view.getWidth()+"x"+view.getHeight())+" progress="+progress
+            +" size="+(view==null?"none":view.getWidth()+"x"+view.getHeight())+" progress="+progress+" pkg="+foregroundPkg+" allowed="+AppFilter.allows(foregroundPkg)
             +" frames="+frames+" touches="+touchCount+" resume="+(recovery!=null && recovery.pending())
             +" attempts="+(recovery==null?0:recovery.attempts())+" status="+status; }
     private long touchCount;
@@ -219,8 +219,52 @@ public final class FoldService extends AccessibilityService {
     private volatile boolean layerWanted;
     /** Package currently in front; drives the per-app allow list. */
     private volatile String foregroundPkg;
+    /**
+     * Windows that do not represent an app the user chose: the status bar / shade / keyguard and
+     * any input method. Letting them overwrite the tracked package made an excluded app show the
+     * effect again a second later, because system UI is always allowed.
+     */
+    private boolean isTransient(String pkg) {
+        if(pkg==null) return false;
+        if("com.android.systemui".equals(pkg)) return true;
+        try {
+            android.view.inputmethod.InputMethodManager imm=getSystemService(android.view.inputmethod.InputMethodManager.class);
+            if(imm!=null) for(android.view.inputmethod.InputMethodInfo info:imm.getEnabledInputMethodList())
+                if(info.getPackageName().equals(pkg)) return true;
+        } catch(RuntimeException ignored) {}
+        return false;
+    }
+    private long lastResolveNanos;
+
+    /**
+     * The package actually in front. Accessibility events alone were not enough: the position
+     * is unknown when a session starts, and system UI / IME windows overwrite it, which let an
+     * excluded app show the effect again a second later. Reading the window stack fixes both.
+     */
+    private String resolveForeground() {
+        long now=System.nanoTime();
+        if(foregroundPkg!=null && now-lastResolveNanos<250_000_000L) return foregroundPkg;
+        lastResolveNanos=now;
+        try {
+            java.util.List<android.view.accessibility.AccessibilityWindowInfo> windows=getWindows();
+            android.view.accessibility.AccessibilityWindowInfo best=null;
+            if(windows!=null) for(android.view.accessibility.AccessibilityWindowInfo w:windows) {
+                if(w.getType()!=android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue;
+                if(best==null || w.getLayer()>best.getLayer()) best=w;
+            }
+            if(best!=null && best.getRoot()!=null) {
+                CharSequence pkg=best.getRoot().getPackageName();
+                String name=pkg==null?"":pkg.toString();
+                if(name.length()>0 && !isTransient(name)) return name;
+            }
+        } catch(RuntimeException ignored) {}
+        return foregroundPkg;
+    }
     /** When the layer was last attached: guards against attach/release flapping. */
     private long attachedAt;
+    private boolean lastGateFolded,lastGateAllowed;
+    private String lastGatePkg;
+    private static boolean equal(String a,String b) {return a==null?b==null:a.equals(b);}
 
     /**
      * The display-attached layer is a full-screen window and steals every touch, so it only
@@ -268,7 +312,14 @@ public final class FoldService extends AccessibilityService {
         boolean folded=layerWanted
                 ? (shown>RELEASE_DEGREES || lastForward>RELEASE_DEGREES || now-attachedAt<600)
                 : (shown>ATTACH_DEGREES && lastForward>ATTACH_DEGREES);
-        boolean want=folded && innerDisplayActive() && AppFilter.allows(foregroundPkg);
+        String front=resolveForeground();
+        if(front!=null) foregroundPkg=front;
+        boolean allowed=AppFilter.allows(foregroundPkg);
+        if(folded!=lastGateFolded || allowed!=lastGateAllowed || !equal(front,lastGatePkg)) {
+            lastGateFolded=folded;lastGateAllowed=allowed;lastGatePkg=front;
+            android.util.Log.i("DuoFold","gate pkg="+front+" allowed="+allowed+" folded="+folded);
+        }
+        boolean want=folded && innerDisplayActive() && allowed;
         if(want!=layerWanted) android.util.Log.i("DuoFold","sync want="+want
                 +" forward="+lastForward+" inner="+innerDisplayActive()+" host="+(glassHost!=null));
         if(want) {
@@ -519,6 +570,7 @@ public final class FoldService extends AccessibilityService {
         if(event.getEventType()==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             CharSequence pkg=event.getPackageName();
             String name=pkg==null?null:pkg.toString();
+            if(isTransient(name)) name=null;
             if(active && name!=null && !name.equals(foregroundPkg)) {
                 foregroundPkg=name;
                 main.post(this::syncLayer);
