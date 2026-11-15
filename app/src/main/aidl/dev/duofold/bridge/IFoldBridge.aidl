@@ -11,6 +11,6 @@ interface IFoldBridge {
     Bundle status() = 3;
     void heartbeat() = 4;
     void stop() = 5;
-    void makeGlassPassThrough(in SurfaceControl layer) = 8;
+    void makeGlassPassThrough(in SurfaceControl layer, boolean touchThrough) = 8;
     void destroy() = 16777114;
 }

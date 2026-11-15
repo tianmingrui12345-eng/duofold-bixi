@@ -48,7 +48,7 @@ public final class CaptureBridge extends IFoldBridge.Stub {
     public CaptureBridge() {thread.start();handler=new Handler(thread.getLooper());}
     public CaptureBridge(Context context) {this();}
 
-    @Override public void makeGlassPassThrough(SurfaceControl layer) {
+    @Override public void makeGlassPassThrough(SurfaceControl layer, boolean touchThrough) {
         if(layer==null) return;
         try(SurfaceControl.Transaction transaction=new SurfaceControl.Transaction()) {
             boolean applied=false;
@@ -62,12 +62,35 @@ public final class CaptureBridge extends IFoldBridge.Stub {
                 break;
             }
             if(!applied) throw new NoSuchMethodException("Transaction.setTrustedOverlay");
+            if(touchThrough) makeTouchTransparent(transaction,layer);
             transaction.apply();
             android.util.Log.i("DuoFold","glass layer marked trusted overlay");
         } catch(Throwable error) {
             android.util.Log.e("DuoFold","trusted overlay failed",error);
         }
     }
+    /**
+     * Gives the layer an input window that never takes a touch. Installed apps cannot do this at
+     * all; from shell we can describe the window ourselves. A null touchable region plus
+     * FLAG_NOT_TOUCHABLE is what the framework itself uses for pass-through overlays.
+     */
+    private void makeTouchTransparent(SurfaceControl.Transaction transaction,SurfaceControl layer) {
+        try {
+            Class<?> handleClass=Class.forName("android.view.InputWindowHandle");
+            Class<?> appClass=Class.forName("android.view.InputApplicationHandle");
+            Object handle=handleClass.getConstructor(appClass,int.class).newInstance(null,0);
+            handleClass.getField("touchableRegion").set(handle,new android.graphics.Region());
+            // FLAG_NOT_TOUCHABLE | FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCH_MODAL
+            handleClass.getField("layoutParamsFlags").set(handle,0x2|0x8|0x20);
+            Class.forName("android.view.SurfaceControl$Transaction")
+                    .getMethod("setInputWindowInfo",SurfaceControl.class,handleClass)
+                    .invoke(transaction,layer,handle);
+            android.util.Log.i("DuoFold","layer input set to pass-through");
+        } catch(Throwable error) {
+            android.util.Log.e("DuoFold","pass-through input failed",error);
+        }
+    }
+
     @Override public Bundle probe() {
         Bundle result=new Bundle();result.putInt("uid",Process.myUid());
         result.putInt("sdk",Build.VERSION.SDK_INT);

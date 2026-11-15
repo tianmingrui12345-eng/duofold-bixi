@@ -403,7 +403,7 @@ public final class FoldService extends AccessibilityService {
             // transaction lands, which is what made the screen unresponsive for a moment.
             try {
                 IFoldBridge bridge=client.service();
-                if(bridge!=null) bridge.makeGlassPassThrough(control);
+                if(bridge!=null) bridge.makeGlassPassThrough(control,dev.duofold.EffectPrefs.touchThrough);
             } catch(Exception error) {android.util.Log.w("DuoFold","pass-through",error);}
             // Hosted layers composite on this ROM only through the accessibility display hook.
             java.lang.reflect.Method attach=AccessibilityService.class
