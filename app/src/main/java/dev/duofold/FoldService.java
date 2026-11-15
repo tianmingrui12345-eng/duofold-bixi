@@ -192,6 +192,7 @@ public final class FoldService extends AccessibilityService {
             // Nothing is drawn while the panel is flat: the layer is created on the first fold.
             syncLayer();
             showNotification();main.post(watchdog);
+            prepareLayer();
         } catch(Exception e) {sessionFailed(e.toString());}
     }
     private SurfaceControl glassLayer;
@@ -211,6 +212,8 @@ public final class FoldService extends AccessibilityService {
     // still moving, which is what makes the end of the unfold feel attached to the finger.
     private static final float ATTACH_DEGREES=4.5f;
     private static final float RELEASE_DEGREES=4.0f;
+    /** Start mirroring here, before the layer is shown, so the first visible frame exists. */
+    private static final float PREROLL_DEGREES=2.5f;
     /**
      * The hinge reads 0-180 with ~1 degree of bias and quantises to whole degrees, so the
      * first 2 degrees are treated as flat. Everything is measured from there.
@@ -304,7 +307,7 @@ public final class FoldService extends AccessibilityService {
         if(!active) return;
         // Flat with nothing attached: the answer is already known, and resolveForeground() is
         // an IPC round trip the 500 ms watchdog would otherwise pay forever.
-        if(!layerWanted && glassHost==null && lastForward<=ATTACH_DEGREES) return;
+        if(!layerWanted && !layerAttached && lastForward<=PREROLL_DEGREES) return;
         long now=SystemClock.uptimeMillis();
         // Use the angle that is actually on screen, not the raw sensor one: while unfolding the
         // raw value reaches the release threshold while the frame is still visibly bent, and
@@ -320,13 +323,20 @@ public final class FoldService extends AccessibilityService {
             lastGateFolded=folded;lastGateAllowed=allowed;lastGatePkg=front;
             android.util.Log.i("DuoFold","gate pkg="+front+" allowed="+allowed+" folded="+folded);
         }
+        // Pre-roll: the mirror takes a moment to deliver its first frame. Starting it a couple
+        // of degrees early means the layer is already fed when it becomes visible.
+        if(!layerAttached && captureSurface!=null && captureSurface.isValid() && !captureReady
+                && lastForward>PREROLL_DEGREES && view!=null) {
+            beginCapture(captureSurface,captureWidth,captureHeight);
+        }
         boolean want=folded && innerDisplayActive() && allowed;
         if(want!=layerWanted) android.util.Log.i("DuoFold","sync want="+want
                 +" forward="+lastForward+" inner="+innerDisplayActive()+" host="+(glassHost!=null));
         if(want) {
             if(!layerWanted) attachedAt=now;
             layerWanted=true;
-            if(glassHost==null) addOverlay();
+            if(glassHost==null) prepareLayer();
+            if(!layerAttached) attachLayer();
             return;
         }
         layerWanted=false;
@@ -342,6 +352,7 @@ public final class FoldService extends AccessibilityService {
                 main.postDelayed(()-> {try{old.onPause();}catch(RuntimeException ignored){}},200);
             }
             status=t("已展开，触屏恢复正常；折起来才会出现效果","Flat: touch restored; fold to see the effect");
+            main.postDelayed(this::prewarmLayer,400);
         }
     }
     /**
@@ -366,18 +377,27 @@ public final class FoldService extends AccessibilityService {
         captureReady=false;
         try {IFoldBridge bridge=client.service();if(bridge!=null)bridge.stop();}catch(Exception ignored){}
     }
-    private void addOverlay() {
+    private SurfaceControl preparedControl;
+    private boolean layerAttached;
+
+    /**
+     * Builds the host and the GL view, compiles the shaders and gets a surface, but does not show
+     * anything. Doing this ahead of the first fold is what removes the hitch at the start: the
+     * fold itself then only has to attach an already warm layer.
+     */
+    private void prepareLayer() {
+        if(glassHost!=null) return;
         int overlayGeneration=generation;
         android.util.DisplayMetrics metrics=new android.util.DisplayMetrics();
         wm.getDefaultDisplay().getRealMetrics(metrics);
         final int w=metrics.widthPixels,h=metrics.heightPixels;
         try {
             Display display=wm.getDefaultDisplay();
+            long startedPrepare=SystemClock.uptimeMillis();
             glassHost=new SurfaceControlViewHost(this,display,new android.os.Binder());
             view=new FoldView(this,new FoldView.Listener() {
                 @Override public void onReady(Surface surface,int cw,int ch) {
                     captureSurface=surface;captureWidth=cw;captureHeight=ch;
-                    if(active && overlayGeneration==generation) beginCapture(surface,cw,ch);
                 }
                 @Override public void onFirstFrame() {}
                 @Override public void onError(String message) {
@@ -393,29 +413,49 @@ public final class FoldService extends AccessibilityService {
                 transaction.setScale(control,1f,1f).setPosition(control,0,0)
                         // Layer 1 sits under app windows (which live around 21000), so the
                         // effect vanished as soon as an app came to the foreground.
-                        .setLayer(control,1000000).setAlpha(control,1f).setVisibility(control,true);
-                // Must be flagged before the display attach, or WindowManager has already
-                // registered it as a touchable window and the whole screen stops responding.
+                        .setLayer(control,1000000).setAlpha(control,0f).setVisibility(control,false);
                 transaction.apply();
             }
-            // Flag it as a trusted overlay BEFORE the display attach: once WindowManager has
-            // registered the window, the input system keeps routing touches to it until the next
-            // transaction lands, which is what made the screen unresponsive for a moment.
             try {
                 IFoldBridge bridge=client.service();
-                if(bridge!=null) bridge.makeGlassPassThrough(control,dev.duofold.EffectPrefs.touchThrough);
+                if(bridge!=null) bridge.makeGlassPassThrough(control);
             } catch(Exception error) {android.util.Log.w("DuoFold","pass-through",error);}
+            glassLayer=control;preparedControl=control;layerAttached=false;
+            android.util.Log.i("DuoFold","layer prepared in "+(SystemClock.uptimeMillis()-startedPrepare)+"ms "+w+"x"+h);
+        } catch(Throwable error) {
+            android.util.Log.e("DuoFold","prepare layer",error);
+            releaseGlassHost();
+        }
+    }
+
+    /** Shows the prepared layer and starts the mirror. */
+    private void attachLayer() {
+        SurfaceControl control=preparedControl;
+        if(control==null) return;
+        try {
+            long startedAttach=SystemClock.uptimeMillis();
+            try(SurfaceControl.Transaction transaction=new SurfaceControl.Transaction()) {
+                transaction.setAlpha(control,1f).setVisibility(control,true).apply();
+            }
             // Hosted layers composite on this ROM only through the accessibility display hook.
             java.lang.reflect.Method attach=AccessibilityService.class
                     .getMethod("attachAccessibilityOverlayToDisplay",int.class,SurfaceControl.class);
-            attach.invoke(this,display.getDisplayId(),control);
-            glassLayer=control;
-            android.util.Log.i("DuoFold","glass host attached "+w+"x"+h);
+            attach.invoke(this,wm.getDefaultDisplay().getDisplayId(),control);
+            layerAttached=true;
+            android.util.Log.i("DuoFold","layer attached in "+(SystemClock.uptimeMillis()-startedAttach)+"ms");
+            if(captureSurface!=null && captureSurface.isValid()) beginCapture(captureSurface,captureWidth,captureHeight);
         } catch(Throwable error) {
-            android.util.Log.e("DuoFold","glass host",error);
+            android.util.Log.e("DuoFold","attach layer",error);
             sessionFailed(t("无法创建显示图层","Could not create the display layer"));
         }
     }
+
+    /** Builds the next layer while the panel is flat so the following fold starts warm. */
+    private void prewarmLayer() {
+        if(!active || layerWanted || glassHost!=null) return;
+        prepareLayer();
+    }
+
     /**
      * Drops the layer in the order that gives input back soonest: hide, release the host (that is
      * what unregisters the input window), and only then let the GL thread finish tearing down.
@@ -423,7 +463,7 @@ public final class FoldService extends AccessibilityService {
     private void releaseGlassHost() {
         SurfaceControl layer=glassLayer;
         SurfaceControlViewHost host=glassHost;
-        glassHost=null;glassLayer=null;
+        glassHost=null;glassLayer=null;preparedControl=null;layerAttached=false;
         long started=SystemClock.uptimeMillis();
         if(layer!=null) {
             try(SurfaceControl.Transaction transaction=new SurfaceControl.Transaction()) {
@@ -518,7 +558,7 @@ public final class FoldService extends AccessibilityService {
         main.removeCallbacks(watchdog);
         if(sensor!=null) {sensor.stop();sensor=null;}
         FoldView old=view;view=null;
-        // Unconditional: addOverlay() can fail after the host exists but before the view does,
+        // Unconditional: prepareLayer() can fail after the host exists but before the view does,
         // and a host left behind stacks a second layer on the next attach.
         releaseGlassHost();
         if(old!=null) {old.releaseResources();main.postDelayed(()-> {try{old.onPause();}catch(RuntimeException ignored){}},200);}
@@ -533,7 +573,7 @@ public final class FoldService extends AccessibilityService {
     }
     @Override public void onConfigurationChanged(Configuration config) {
         super.onConfigurationChanged(config);
-        // One path only. The old copy called addOverlay() directly, which skipped both the fold
+        // One path only. The old copy attached the layer directly, which skipped both the fold
         // test and the per-app filter: rotating inside an excluded app showed the effect.
         rebuildLayer();
     }

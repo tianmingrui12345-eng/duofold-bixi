@@ -177,16 +177,6 @@ public final class MainActivity extends Activity {
         });
         tuning.addView(heightCurve,new LinearLayout.LayoutParams(-1,-2));
 
-        Switch touchThrough=new Switch(this);
-        touchThrough.setText(t("折叠时允许触控（实验）","Allow touch while folded (experimental)"));
-        touchThrough.setTextColor(Ui.FG);touchThrough.setTextSize(13);
-        touchThrough.setChecked(EffectPrefs.touchThrough);
-        touchThrough.setOnCheckedChangeListener((b,checked)-> {
-            prefs.edit().putBoolean("touchThrough",checked).apply();
-            EffectPrefs.setTouchThrough(this,checked);
-            Toast.makeText(this,t("下次折起生效","Applies on the next fold"),Toast.LENGTH_SHORT).show();
-        });
-        tuning.addView(touchThrough,new LinearLayout.LayoutParams(-1,-2));
 
         Ui.add(this,tuning,Ui.text(this,t("末端加速：从哪个物理角度开始加速 · 补掉多少剩余差距","Tail acceleration: physical angle to start from, and how much of the remaining gap to close"),12,Ui.MUTED),16,1);
         slider(tuning,t("开始加速的角度","Accelerate from"),10,90,prefs.getFloat("tailKnee",60f),
