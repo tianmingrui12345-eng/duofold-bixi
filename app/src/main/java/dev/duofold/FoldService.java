@@ -179,6 +179,8 @@ public final class FoldService extends AccessibilityService {
                 // The layer's on/off decision must follow the real hinge angle: using the
                 // scaled value kept the layer attached (and the screen untouchable) whenever
                 // the max-tilt preset was small.
+                if(unfolded<lastForward-0.05f && layerWanted && unfoldStartedAt==0)
+                    unfoldStartedAt=SystemClock.uptimeMillis();
                 lastForward=unfolded;
                 if(view!=null && active) view.setFold(
                         (float)Math.toRadians(effective),(float)Math.toRadians(sideDegrees),
@@ -201,8 +203,11 @@ public final class FoldService extends AccessibilityService {
      * below 1. The hinge reports whole degrees with ~1 degree of bias when flat, so a single
      * threshold would flap and toggle touch on and off while resting.
      */
-    private static final float ATTACH_DEGREES=0.5f;
-    private static final float RELEASE_DEGREES=0.15f;
+    // Released a couple of degrees early: at that angle the effect is already invisible
+    // (blur ramp ~0.1), and the input system needs a moment to route touches back to the app.
+    // Attaching slightly later keeps the hysteresis one-directional, so no flapping.
+    private static final float ATTACH_DEGREES=2.0f;
+    private static final float RELEASE_DEGREES=1.6f;
     /**
      * The hinge reads 0-180 with ~1 degree of bias and quantises to whole degrees, so the
      * first 2 degrees are treated as flat. Everything is measured from there.
@@ -255,6 +260,8 @@ public final class FoldService extends AccessibilityService {
     }
     /** When the layer was last attached: guards against attach/release flapping. */
     private long attachedAt;
+    /** First frame where the fold was seen closing, used to log the release latency. */
+    private long unfoldStartedAt;
     private boolean lastGateFolded,lastGateAllowed;
     private String lastGatePkg;
     private static boolean equal(String a,String b) {return a==null?b==null:a.equals(b);}
@@ -423,7 +430,8 @@ public final class FoldService extends AccessibilityService {
         if(host!=null) {
             try{host.release();}catch(Throwable error){android.util.Log.w("DuoFold","release host",error);}
         }
-        android.util.Log.i("DuoFold","layer released in "+(SystemClock.uptimeMillis()-started)+"ms");
+        android.util.Log.i("DuoFold","layer released in "+(SystemClock.uptimeMillis()-started)+"ms"+(unfoldStartedAt>0?" ("+(SystemClock.uptimeMillis()-unfoldStartedAt)+"ms after unfold began)":""));
+        unfoldStartedAt=0;
     }
     private void beginCapture(Surface surface,int w,int h) {
         if(!active || view==null) return;
