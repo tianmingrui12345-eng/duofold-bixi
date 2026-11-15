@@ -176,6 +176,12 @@ public final class MainActivity extends Activity {
             EffectPrefs.setHeightCurve(this,value);
         });
         tuning.addView(heightCurve,new LinearLayout.LayoutParams(-1,-2));
+
+        Ui.add(this,tuning,Ui.text(this,t("末端加速：从哪个物理角度开始加速 · 补掉多少剩余差距","Tail acceleration: physical angle to start from, and how much of the remaining gap to close"),12,Ui.MUTED),16,1);
+        slider(tuning,t("开始加速的角度","Accelerate from"),10,90,prefs.getFloat("tailKnee",60f),
+                value->{prefs.edit().putFloat("tailKnee",(float)value).apply();EffectPrefs.setTailKnee(this,value);},"°");
+        slider(tuning,t("末端加速强度","Tail strength"),0,100,prefs.getFloat("tailBoost",0.6f)*100,
+                value->{prefs.edit().putFloat("tailBoost",value/100f).apply();EffectPrefs.setTailBoost(this,value/100f);},"%");
         Ui.add(this,tuning,Ui.text(this,t("左右两条边的倾斜：+60% 上边张开（上宽下窄）· 0% 两条边竖直 · -60% 上边收拢（上窄下宽）","Side edge slant: +60% wider on top, 0% vertical, -60% narrower on top"),12,Ui.ACCENT),14,0);
         slider(tuning,t("左右边倾斜","Side slant"),-60,60,prefs.getFloat("sideSlant",0f)*100,value->{prefs.edit().putFloat("sideSlant",value/100f).apply();EffectPrefs.setSlant(this,value/100f);},"%");
         Ui.add(this,tuning,Ui.text(this,t("圆角：半径（屏幕短边占比）与圆度（数值越小越圆）","Corner: radius (% of short side) and roundness (smaller = rounder)"),12,Ui.ACCENT),14,0);

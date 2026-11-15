@@ -169,11 +169,12 @@ public final class FoldService extends AccessibilityService {
                 float effective=Math.min(ceiling,unfolded*scale);
                 // Past 60 degrees of physical fold the effect closes the remaining gap faster,
                 // so the last part of the fold is not dead travel. Nothing below the knee changes.
-                // shortcut: fixed knee/strength, expose them if the feel needs tuning.
-                if(unfolded>TAIL_KNEE_DEGREES) {
-                    float tail=Math.min(1f,(unfolded-TAIL_KNEE_DEGREES)/(180f-TAIL_KNEE_DEGREES));
+                float knee=dev.duofold.EffectPrefs.tailKnee;
+                float boost=dev.duofold.EffectPrefs.tailBoost;
+                if(boost>0.001f && unfolded>knee) {
+                    float tail=Math.min(1f,(unfolded-knee)/(180f-knee));
                     float ease=1f-(1f-tail)*(1f-tail);
-                    effective=Math.min(ceiling,effective+(ceiling-effective)*ease*TAIL_BOOST);
+                    effective=Math.min(ceiling,effective+(ceiling-effective)*ease*boost);
                 }
                 // The layer's on/off decision must follow the real hinge angle: using the
                 // scaled value kept the layer attached (and the screen untouchable) whenever
@@ -207,10 +208,6 @@ public final class FoldService extends AccessibilityService {
      * first 2 degrees are treated as flat. Everything is measured from there.
      */
     private static final float FLAT_OFFSET_DEGREES=2f;
-    /** Physical fold angle where the effect starts closing the remaining gap faster. */
-    private static final float TAIL_KNEE_DEGREES=60f;
-    /** How much of the remaining gap that tail closes, 0 = none, 1 = all of it. */
-    private static final float TAIL_BOOST=0.6f;
     private volatile float lastForward;
     private volatile boolean layerWanted;
     /** Package currently in front; drives the per-app allow list. */
@@ -288,8 +285,9 @@ public final class FoldService extends AccessibilityService {
         boolean wanted=layerWanted;
         layerWanted=false;
         stopCapture();
-        if(view!=null) {FoldView old=view;view=null;old.releaseResources();old.onPause();}
+        FoldView old=view;view=null;
         releaseGlassHost();
+        if(old!=null) {old.releaseResources();main.postDelayed(()-> {try{old.onPause();}catch(RuntimeException ignored){}},200);}
         if(wanted) syncLayer();
     }
     private void syncLayer() {
@@ -325,11 +323,14 @@ public final class FoldService extends AccessibilityService {
         if(glassHost==null && view==null) return;
         {
             stopCapture();
-            if(view!=null) {
-                FoldView old=view;view=null;
-                old.releaseResources();old.onPause();
+            FoldView old=view;view=null;
+            releaseGlassHost();          // input first
+            if(old!=null) {
+                old.releaseResources();
+                // GLSurfaceView.onPause() waits for the GL thread; keep it off this path so the
+                // layer is gone before the pause round trip starts.
+                main.postDelayed(()-> {try{old.onPause();}catch(RuntimeException ignored){}},200);
             }
-            releaseGlassHost();
             status=t("已展开，触屏恢复正常；折起来才会出现效果","Flat: touch restored; fold to see the effect");
         }
     }
@@ -387,27 +388,42 @@ public final class FoldService extends AccessibilityService {
                 // registered it as a touchable window and the whole screen stops responding.
                 transaction.apply();
             }
+            // Flag it as a trusted overlay BEFORE the display attach: once WindowManager has
+            // registered the window, the input system keeps routing touches to it until the next
+            // transaction lands, which is what made the screen unresponsive for a moment.
+            try {
+                IFoldBridge bridge=client.service();
+                if(bridge!=null) bridge.makeGlassPassThrough(control);
+            } catch(Exception error) {android.util.Log.w("DuoFold","pass-through",error);}
             // Hosted layers composite on this ROM only through the accessibility display hook.
             java.lang.reflect.Method attach=AccessibilityService.class
                     .getMethod("attachAccessibilityOverlayToDisplay",int.class,SurfaceControl.class);
             attach.invoke(this,display.getDisplayId(),control);
             glassLayer=control;
-            try {
-                IFoldBridge bridge=client.service();
-                if(bridge!=null) bridge.makeGlassPassThrough(control);
-            } catch(Exception error) {android.util.Log.w("DuoFold","pass-through",error);}
             android.util.Log.i("DuoFold","glass host attached "+w+"x"+h);
         } catch(Throwable error) {
             android.util.Log.e("DuoFold","glass host",error);
             sessionFailed(t("无法创建显示图层","Could not create the display layer"));
         }
     }
+    /**
+     * Drops the layer in the order that gives input back soonest: hide, release the host (that is
+     * what unregisters the input window), and only then let the GL thread finish tearing down.
+     */
     private void releaseGlassHost() {
-        if(glassHost!=null) {
-            try{glassHost.release();}catch(Throwable error){android.util.Log.w("DuoFold","release host",error);}
-            glassHost=null;
+        SurfaceControl layer=glassLayer;
+        SurfaceControlViewHost host=glassHost;
+        glassHost=null;glassLayer=null;
+        long started=SystemClock.uptimeMillis();
+        if(layer!=null) {
+            try(SurfaceControl.Transaction transaction=new SurfaceControl.Transaction()) {
+                transaction.setVisibility(layer,false).apply();
+            } catch(Throwable error) {android.util.Log.w("DuoFold","hide layer",error);}
         }
-        glassLayer=null;
+        if(host!=null) {
+            try{host.release();}catch(Throwable error){android.util.Log.w("DuoFold","release host",error);}
+        }
+        android.util.Log.i("DuoFold","layer released in "+(SystemClock.uptimeMillis()-started)+"ms");
     }
     private void beginCapture(Surface surface,int w,int h) {
         if(!active || view==null) return;
@@ -490,10 +506,11 @@ public final class FoldService extends AccessibilityService {
         android.util.Log.i("DuoFold", "Stopped: "+reason+"; frames="+frames);
         main.removeCallbacks(watchdog);
         if(sensor!=null) {sensor.stop();sensor=null;}
-        if(view!=null) {FoldView old=view;view=null;old.releaseResources();old.onPause();}
+        FoldView old=view;view=null;
         // Unconditional: addOverlay() can fail after the host exists but before the view does,
         // and a host left behind stacks a second layer on the next attach.
         releaseGlassHost();
+        if(old!=null) {old.releaseResources();main.postDelayed(()-> {try{old.onPause();}catch(RuntimeException ignored){}},200);}
         IFoldBridge bridge=client==null?null:client.service();
         if(bridge!=null) io.execute(()-> {
             // An old service's teardown must not stop a newly bound service's capture.

@@ -20,6 +20,10 @@ public final class EffectPrefs {
     public static volatile int captureWidth=0;
     /** Corner radius as a fraction of the panel's short side. */
     public static volatile float cornerRadius=0.095f;
+    /** Physical fold angle (deg) where the effect starts accelerating towards the ceiling. */
+    public static volatile float tailKnee=60f;
+    /** How much of the remaining gap the tail closes: 0 = none, 1 = all of it. */
+    public static volatile float tailBoost=0.6f;
     /** 0 = linear in fold progress, 1 = 1 - cos(tilt). */
     public static volatile float heightCurve=0f;
     /** Superellipse exponent: 2 = ellipse, larger = squarer. */
@@ -33,6 +37,8 @@ public final class EffectPrefs {
         intensity=Math.max(0.2f,Math.min(1f,prefs.getFloat("intensity",1f)));
         captureWidth=prefs.getInt("captureWidth",0);
         heightCurve=prefs.getFloat("heightCurve",0f);
+        tailKnee=Math.max(10f,Math.min(90f,prefs.getFloat("tailKnee",60f)));
+        tailBoost=Math.max(0f,Math.min(1f,prefs.getFloat("tailBoost",0.6f)));
         cornerRadius=Math.max(0.01f,Math.min(0.30f,prefs.getFloat("cornerRadius",0.095f)));
         cornerPower=Math.max(2f,Math.min(8f,prefs.getFloat("cornerPower",3.2f)));
     }
@@ -60,6 +66,16 @@ public final class EffectPrefs {
         captureWidth=Math.max(0,value);
         context.getApplicationContext().getSharedPreferences("duo",0)
                 .edit().putInt("captureWidth",captureWidth).apply();
+    }
+    public static void setTailKnee(Context context,float value){
+        tailKnee=Math.max(10f,Math.min(90f,value));
+        context.getApplicationContext().getSharedPreferences("duo",0)
+                .edit().putFloat("tailKnee",tailKnee).apply();
+    }
+    public static void setTailBoost(Context context,float value){
+        tailBoost=Math.max(0f,Math.min(1f,value));
+        context.getApplicationContext().getSharedPreferences("duo",0)
+                .edit().putFloat("tailBoost",tailBoost).apply();
     }
     public static void setHeightCurve(Context context,float value){
         heightCurve=value;
