@@ -56,10 +56,14 @@ public final class CaptureBridge extends IFoldBridge.Stub {
                 if(!"setTrustedOverlay".equals(candidate.getName()))continue;
                 Class<?>[] parameters=candidate.getParameterTypes();
                 if(parameters.length!=2||parameters[0]!=SurfaceControl.class)continue;
-                if(parameters[1]==boolean.class) candidate.invoke(transaction,layer,true);
-                else continue;
-                applied=true;
-                break;
+                // The int overload and every mode of it were tried on HyperOS 3 / Android 16:
+                // none of them makes the layer input-transparent. Screenshot exclusion is all
+                // this flag actually buys on this ROM.
+                if(parameters[1]==boolean.class) {
+                    candidate.invoke(transaction,layer,true);
+                    applied=true;
+                    break;
+                }
             }
             if(!applied) throw new NoSuchMethodException("Transaction.setTrustedOverlay");
             transaction.apply();
