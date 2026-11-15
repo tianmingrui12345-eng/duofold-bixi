@@ -206,8 +206,11 @@ public final class FoldService extends AccessibilityService {
     // Released a couple of degrees early: at that angle the effect is already invisible
     // (blur ramp ~0.1), and the input system needs a moment to route touches back to the app.
     // Attaching slightly later keeps the hysteresis one-directional, so no flapping.
-    private static final float ATTACH_DEGREES=2.0f;
-    private static final float RELEASE_DEGREES=1.6f;
+    // The effect is already invisible below ~5 degrees (blur radius under 1 pt), so the layer is
+    // dropped there instead of at the flat position. That hands input back while the hinge is
+    // still moving, which is what makes the end of the unfold feel attached to the finger.
+    private static final float ATTACH_DEGREES=4.5f;
+    private static final float RELEASE_DEGREES=4.0f;
     /**
      * The hinge reads 0-180 with ~1 degree of bias and quantises to whole degrees, so the
      * first 2 degrees are treated as flat. Everything is measured from there.
@@ -308,7 +311,7 @@ public final class FoldService extends AccessibilityService {
         // dropping the layer then made the last few degrees snap flat in a single frame.
         float shown=view!=null?view.smoothedDegrees():lastForward;
         boolean folded=layerWanted
-                ? (shown>RELEASE_DEGREES || lastForward>RELEASE_DEGREES || now-attachedAt<600)
+                ? (lastForward>RELEASE_DEGREES || now-attachedAt<600)
                 : (shown>ATTACH_DEGREES && lastForward>ATTACH_DEGREES);
         String front=resolveForeground();
         if(front!=null) foregroundPkg=front;
