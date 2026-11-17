@@ -97,10 +97,11 @@ vec3 litFold(vec3 base) {
  * Crossfades the moving half into the static half over the last points before the hinge: the
  * darkened upper half otherwise meets the untouched lower half in a hard line.
  */
-vec3 feathered(vec3 colour,vec2 uv,float fromHinge,float settle) {
-    // The band closes up as the reflection becomes a true 1:1 mirror, where the seam is already
-    // continuous and a fuzzy strip would show as a ghost.
-    return mix(readScreen(uv),colour,smoothstep(0.0,HINGE_FEATHER*(1.0-settle)+0.001,fromHinge));
+vec3 creased(vec3 colour,float fromHinge,float settle) {
+    // Shade the moving half into the hinge instead of blending the flat half into it: a crossfade
+    // shows the folded picture and the flat one at the same time, which reads as a double image.
+    float strength=smoothstep(DIM_START-25.0,DIM_FULL,uFoldDegrees)*(1.0-settle);
+    return colour*mix(1.0,smoothstep(0.0,HINGE_FEATHER,fromHinge),strength);
 }
 
 void main() {
@@ -167,7 +168,7 @@ void main() {
     attenuation=mix(attenuation,1.0,settle);
 
     if(radiusPoints<0.5) {
-        gl_FragColor=vec4(feathered(litFold(readScreen(leafToUv(samplePoint))*attenuation),vUv,fromHinge,settle)*ramp,ramp);return;
+        gl_FragColor=vec4(creased(litFold(readScreen(leafToUv(samplePoint))*attenuation),fromHinge,settle)*ramp,ramp);return;
     }
     float taps=clamp(floor(radiusPoints*3.0),8.0,48.0);
     float rotation=uEffectStyle==2?0.0:hash21(vUv*uSizePoints)*6.28318530718;
@@ -182,5 +183,5 @@ void main() {
         sum+=weight*readScreen(leafToUv(tap));
         weights+=weight;
     }
-    gl_FragColor=vec4(feathered(litFold(sum/weights*attenuation),vUv,fromHinge,settle)*ramp,ramp);
+    gl_FragColor=vec4(creased(litFold(sum/weights*attenuation),fromHinge,settle)*ramp,ramp);
 }
