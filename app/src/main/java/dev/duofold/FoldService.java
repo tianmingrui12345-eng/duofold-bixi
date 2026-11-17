@@ -224,16 +224,17 @@ public final class FoldService extends AccessibilityService {
     // The effect is already invisible below ~5 degrees (blur radius under 1 pt), so the layer is
     // dropped there instead of at the flat position. That hands input back while the hinge is
     // still moving, which is what makes the end of the unfold feel attached to the finger.
-    private static final float ATTACH_DEGREES=6.0f;
-    private static final float RELEASE_DEGREES=3.0f;
+    private static final float ATTACH_DEGREES=1.5f;
+    private static final float RELEASE_DEGREES=0.8f;
     /** Start mirroring here, before the layer is shown, so the first visible frame exists. */
-    private static final float PREROLL_DEGREES=2.5f;
+    private static final float PREROLL_DEGREES=0.3f;
     /**
      * The hinge reads 0-180 with ~1 degree of bias and quantises to whole degrees, so the
      * first 2 degrees are treated as flat. Everything is measured from there.
      */
     private static final float FLAT_OFFSET_DEGREES=2f;
     private volatile float lastForward;
+    private float previousForward;
     private volatile boolean layerWanted;
     /** Package currently in front; drives the per-app allow list. */
     private volatile String foregroundPkg;
@@ -339,7 +340,9 @@ public final class FoldService extends AccessibilityService {
         }
         // Pre-roll: the mirror takes a moment to deliver its first frame. Starting it a couple
         // of degrees early means the layer is already fed when it becomes visible.
-        if(!layerAttached && captureSurface!=null && captureSurface.isValid() && !captureReady
+        boolean closing=lastForward>previousForward;
+        previousForward=lastForward;
+        if(!layerAttached && closing && captureSurface!=null && captureSurface.isValid() && !captureReady
                 && lastForward>PREROLL_DEGREES && view!=null) {
             beginCapture(captureSurface,captureWidth,captureHeight);
         }
@@ -567,6 +570,7 @@ public final class FoldService extends AccessibilityService {
                 }
             }
             syncLayer();
+            if(!layerWanted && captureReady) stopCapture();
             IFoldBridge bridge=client.service();
             if(bridge==null) {bridgeChanged.run();return;}
             int session=generation;

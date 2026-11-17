@@ -76,7 +76,8 @@ void main() {
     // Opaque whenever the layer exists: a fade-in here made the live screen and the mirrored
     // one visible at the same time, which reads as a double image during the first degrees.
     float ramp=1.0;
-    float blurRamp=smoothstep(0.015,0.28,tilt);
+    // Full blur by ~7 degrees: the effect should be visible as soon as the fold starts.
+    float blurRamp=smoothstep(0.02,0.12,tilt);
 
     float halfLeaf=(uLandscape<0.5?uSizePoints.y:uSizePoints.x)*0.5;
     vec2 p=uvToLeaf(vUv);
