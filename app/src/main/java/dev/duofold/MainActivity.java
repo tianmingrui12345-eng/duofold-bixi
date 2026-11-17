@@ -7,11 +7,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.provider.Settings;
+import android.os.Handler;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.Gravity;
@@ -20,7 +19,6 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.widget.Switch;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -68,15 +66,6 @@ public final class MainActivity extends Activity {
         stepService=Ui.button(this,setup,t("02   开启屏幕效果辅助服务","02   Enable the screen effect service"),this::openAccessibility,false);
         // MIUI freezes background apps after a few seconds and drops the effect service with
         // them, so ask for the battery-optimisation exemption up front.
-        Ui.button(this,setup,t("02b  允许后台运行（关闭电池优化）","02b  Allow background running"),()-> {
-            try {
-                Intent intent=new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                        Uri.parse("package:"+getPackageName()));
-                startActivity(intent);
-            } catch(Exception error) {
-                Toast.makeText(this,t("请在系统设置里把本应用的省电策略设为无限制","Set battery saver to unrestricted for this app"),Toast.LENGTH_LONG).show();
-            }
-        },false);
         Ui.add(this,setup,Ui.text(this,t("辅助服务用于显示效果与修正触控。画面只在本机内存处理，不保存、不上传。",
                 "The accessibility service shows the effect and remaps touches. Frames stay in local memory: never saved, never uploaded."),12,Ui.MUTED),10,0);
         liveStatus=Ui.text(this,t("点下面的按钮开启效果","Tap the button below to start"),14,Ui.FG);Ui.add(this,setup,liveStatus,16,0);

@@ -57,6 +57,12 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
     /** Low-pass time constant: long enough to hide the hinge's 1-degree steps, short enough to
      *  feel attached to the hinge. 150 ms felt laggy, 70 ms still slightly heavy; 60 ms now. */
     private volatile float targetForward,targetSide,targetIntensity=1f;
+    /** Fold angle (deg) at which the effect starts fading in; matches the service's trigger. */
+    private static final float START_DEGREES=2f;
+    /** Ease time for that fade, in seconds. Long enough to cover several hinge samples. */
+    private static final float GAIN_TAU=0.09f;
+    private float gain;
+    private long gainNanos;
     private volatile float smoothForward;
     private float smoothSide;
     private long smoothNanos;
@@ -108,17 +114,24 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             if(newFrame) { newFrame=false; texture.updateTexImage(); texture.getTransformMatrix(matrix); hasFrame=true; }
             if(!hasFrame) return;
             EffectStyle style=effectStyle;
-            // Track the hinge with no lag: any low-pass here reads as the effect trailing the
-            // fold. The ease-in lives in the first 2 degrees only, which is all the soft start
-            // needs — the rest of the travel renders the angle it is given.
+            // Track the hinge with no lag: a low-pass here reads as the effect trailing the
+            // fold. The soft start is a presentation gain instead, timed rather than tied to
+            // degrees — the hinge reports whole degrees, so an angle-based ramp can be crossed
+            // in a single frame and looks like a jump.
             smoothForward=targetForward;
             smoothSide=targetSide;
             smoothNanos=0;
             float foldDegrees=(float)Math.toDegrees(smoothForward);
-            float startFade=Math.min(1f,Math.max(0f,foldDegrees/2f));
-            float eased=startFade*startFade*(3f-2f*startFade);
+            long gainNow=System.nanoTime();
+            float gainDt=gainNanos==0?0f:Math.min(0.05f,(gainNow-gainNanos)/1e9f);
+            gainNanos=gainNow;
+            float targetGain=foldDegrees>START_DEGREES?1f:0f;
+            float gainK=gainDt<=0f?1f:1f-(float)Math.exp(-gainDt/GAIN_TAU);
+            gain+=(targetGain-gain)*gainK;
+            if(Math.abs(targetGain-gain)<0.004f) gain=targetGain;
+            if(gain!=targetGain) postDelayed(this::requestRender,16);
             float density=getResources().getDisplayMetrics().density;
-            FoldModel.State s=FoldModel.atAxes(smoothForward*eased,smoothSide,targetIntensity,
+            FoldModel.State s=FoldModel.atAxes(smoothForward*gain,smoothSide,targetIntensity,
                     Math.max(1,width)/density,Math.max(1,height)/density);
             state=s;
             long now=System.nanoTime();
