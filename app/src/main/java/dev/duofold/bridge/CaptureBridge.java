@@ -199,6 +199,10 @@ public final class CaptureBridge extends IFoldBridge.Stub {
                         if(!argsExclude)throw new IllegalStateException("This ROM cannot exclude the effect layer",markFailure);
                     }
                 }
+                // A restart used to leave the previous loop running, so two loops captured into
+                // the same surface and the app only ever saw one of them (the other carried a
+                // stale session id and was dropped).
+                handler.removeCallbacks(frame);
                 frames=0;error="";running=true;handler.post(frame);
             } catch(Throwable e) {
                 android.util.Log.e("DuoFold","capture start failed",e);

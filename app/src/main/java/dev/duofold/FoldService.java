@@ -199,6 +199,7 @@ public final class FoldService extends AccessibilityService {
     private SurfaceControlViewHost glassHost;
     private Surface captureSurface;
     private int captureWidth,captureHeight,captureRetries;
+    private boolean captureStarting;
     /**
      * Hysteresis for the layer: attach once the panel is folded by 2 degrees, release again
      * below 1. The hinge reports whole degrees with ~1 degree of bias when flat, so a single
@@ -210,8 +211,8 @@ public final class FoldService extends AccessibilityService {
     // The effect is already invisible below ~5 degrees (blur radius under 1 pt), so the layer is
     // dropped there instead of at the flat position. That hands input back while the hinge is
     // still moving, which is what makes the end of the unfold feel attached to the finger.
-    private static final float ATTACH_DEGREES=4.5f;
-    private static final float RELEASE_DEGREES=4.0f;
+    private static final float ATTACH_DEGREES=6.0f;
+    private static final float RELEASE_DEGREES=3.0f;
     /** Start mirroring here, before the layer is shown, so the first visible frame exists. */
     private static final float PREROLL_DEGREES=2.5f;
     /**
@@ -364,7 +365,7 @@ public final class FoldService extends AccessibilityService {
         if(!active || !layerWanted) return;
         boolean rebuild=view==null || glassHost==null || captureSurface==null || !captureSurface.isValid();
         android.util.Log.i("DuoFold","capture stalled, rebuild="+rebuild+" #"+captureRetries);
-        lastFrame=0;started=SystemClock.uptimeMillis();
+        lastFrame=SystemClock.uptimeMillis();started=SystemClock.uptimeMillis();
         if(rebuild) {layerWanted=false;syncLayer();}
         else beginCapture(captureSurface,captureWidth,captureHeight);
     }
@@ -374,7 +375,7 @@ public final class FoldService extends AccessibilityService {
         recoverCapture();
     }
     private void stopCapture() {
-        captureReady=false;
+        captureReady=false;captureStarting=false;
         try {IFoldBridge bridge=client.service();if(bridge!=null)bridge.stop();}catch(Exception ignored){}
     }
     private SurfaceControl preparedControl;
@@ -443,7 +444,11 @@ public final class FoldService extends AccessibilityService {
             attach.invoke(this,wm.getDefaultDisplay().getDisplayId(),control);
             layerAttached=true;
             android.util.Log.i("DuoFold","layer attached in "+(SystemClock.uptimeMillis()-startedAttach)+"ms");
-            if(captureSurface!=null && captureSurface.isValid()) beginCapture(captureSurface,captureWidth,captureHeight);
+            // No capture start here: the pre-roll already began it while the layer was invisible.
+            // Starting twice ran two capture loops against one surface and the second call
+            // returned a null buffer, which killed the session.
+            if(captureSurface!=null && captureSurface.isValid() && !captureReady
+                    && lastForward>PREROLL_DEGREES) beginCapture(captureSurface,captureWidth,captureHeight);
         } catch(Throwable error) {
             android.util.Log.e("DuoFold","attach layer",error);
             sessionFailed(t("无法创建显示图层","Could not create the display layer"));
@@ -477,7 +482,8 @@ public final class FoldService extends AccessibilityService {
         unfoldStartedAt=0;
     }
     private void beginCapture(Surface surface,int w,int h) {
-        if(!active || view==null) return;
+        if(!active || view==null || captureStarting) return;
+        captureStarting=true;
         clearMotionSources();captureReady=false;started=SystemClock.uptimeMillis();lastFrame=0;
         SurfaceControl exclude=glassLayer;
         android.util.Log.i("DuoFold","capture start exclude="+(exclude==null?"null":("valid="+exclude.isValid())));
@@ -495,6 +501,7 @@ public final class FoldService extends AccessibilityService {
                         main.post(()-> {
                             if(!active || session!=generation) return;
                             lastFrame=SystemClock.uptimeMillis();frames=sequence;captureRetries=0;
+                            if(sequence%120==0) android.util.Log.i("DuoFold","frames="+sequence);
                             if(Build.VERSION.SDK_INT>=31 && !captureReady) {
                                 captureReady=true;
                                 if(!screenUsable()) {suspendSession(t("等待解锁","Waiting for unlock"));return;}
@@ -506,6 +513,7 @@ public final class FoldService extends AccessibilityService {
                     @Override public void onError(String message) {main.post(()->{if(session==generation) sessionFailed(message);});}
                 });
             } catch(Exception e) {main.post(()->{if(session==generation) sessionFailed(e.toString());});}
+            finally {main.post(()->captureStarting=false);}
         });
     }
     private final Runnable watchdog=new Runnable() {
@@ -514,7 +522,10 @@ public final class FoldService extends AccessibilityService {
             if(!screenUsable()) {suspendSession(t("屏幕已锁定，解锁后自动恢复","Screen locked; resumes after unlock"));return;}
             long now=SystemClock.uptimeMillis();
             boolean liveCapture=Build.VERSION.SDK_INT>=31;
-            if(layerWanted && ((liveCapture && lastFrame>0 && now-lastFrame>1500) || (lastFrame==0 && now-started>5000))) {
+            // A capture that was just (re)started has lastFrame 0 and frames 0 for a moment;
+            // treating that as a stall made the watchdog restart it in a loop.
+            if(layerWanted && ((liveCapture && lastFrame>0 && now-lastFrame>1500)
+                    || (lastFrame==0 && now-started>5000 && now-attachedAt>4000))) {
                 // Switching to another app (or the panel changing) can drop the capture while
                 // the layer is still up. Restart it instead of tearing the session down.
                 if(captureRetries<40) {captureRetries++;recoverCapture();}
