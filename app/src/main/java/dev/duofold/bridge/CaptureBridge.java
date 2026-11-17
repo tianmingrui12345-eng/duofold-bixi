@@ -248,8 +248,11 @@ public final class CaptureBridge extends IFoldBridge.Stub {
             float sx=width/(float)Math.max(1,options.getInt("displayWidth",width));
             float sy=height/(float)Math.max(1,options.getInt("displayHeight",height));
             tryOptional(builderClass,"setFrameScale",builder,float.class,float.class,sx,sy);
+            // Android 17 rejects the whole capture when an attached accessibility overlay is
+            // passed as an excluded layer (the first frame comes back null). The layer is already
+            // flagged skipScreenshot, which excludes it from capture just as well.
             try {
-                if(exclude!=null){
+                if(exclude!=null && Build.VERSION.SDK_INT<37) {
                     builderClass.getMethod("setExcludeLayers",SurfaceControl[].class)
                             .invoke(builder,(Object)new SurfaceControl[]{exclude});
                     argsExclude=true;
