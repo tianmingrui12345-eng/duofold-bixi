@@ -90,7 +90,7 @@ vec3 withReflection(vec3 base,vec2 uv) {
     float deg=uFoldDegrees;
     vec3 colour=base*(1.0-smoothstep(uDimStart,90.0,deg));
     if(deg<=91.0) return colour;
-    float lit=smoothstep(90.0,uReflFull,deg);
+    float lit=smoothstep(90.0,max(uReflFull,92.0),deg);
     return mix(colour,readReflection(uv),lit);
 }
 
@@ -165,5 +165,5 @@ void main() {
         sum+=weight*readScreen(leafToUv(tap));
         weights+=weight;
     }
-    gl_FragColor=vec4(uFoldDegrees/255.0,smoothstep(90.0,uReflFull,uFoldDegrees),dot(readReflection(vUv,0.8*(uFoldDegrees-90.0)),vec3(0.3333)));
+    gl_FragColor=vec4(withReflection(sum/weights*attenuation,vUv)*ramp,ramp);
 }
