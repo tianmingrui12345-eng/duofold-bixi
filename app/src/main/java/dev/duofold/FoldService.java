@@ -167,7 +167,6 @@ public final class FoldService extends AccessibilityService {
         started=SystemClock.uptimeMillis();
         intensity=getSharedPreferences("duo",0).getFloat("intensity",1);
         dev.duofold.EffectPrefs.load(this);
-        float range=getSharedPreferences("duo",0).getFloat("range",80);
         status=t("正在取得真实屏幕画面","Capturing the real screen");
         try {
             layerWanted=false;
@@ -175,10 +174,10 @@ public final class FoldService extends AccessibilityService {
             dev.duofold.motion.HingeTiltSensor.Listener pose=(p,forwardDegrees,sideDegrees)-> {
                 progress=p;
                 // The ray-projection model saturates at 80 degrees of tilt (FoldModel clamps
-                // there). Map the chosen preset onto that ceiling, otherwise a 90 degree
-                // preset hit the ceiling at half the real fold and the animation froze.
+                // there), so the physical fold is mapped onto that ceiling: 150 degrees of real
+                // fold fill it.
                 float ceiling=80f;
-                float scale=ceiling/Math.max(15f,dev.duofold.EffectPrefs.range);
+                float scale=ceiling/150f;
                 float unfolded=Math.max(0f,forwardDegrees-FLAT_OFFSET_DEGREES);
                 float effective=Math.min(ceiling,unfolded*scale);
                 // Past 60 degrees of physical fold the effect closes the remaining gap faster,

@@ -44,7 +44,7 @@ public final class MainActivity extends Activity {
         int motionVersion=prefs.getInt("motionVersion",0);
         if(motionVersion<3) {
             SharedPreferences.Editor migration=prefs.edit().putInt("motionVersion",3);
-            if(motionVersion<2)migration.putFloat("range",180).putFloat("intensity",1);
+            if(motionVersion<2)migration.putFloat("intensity",1);
             migration.apply();
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(Ui.BG);
@@ -87,35 +87,6 @@ public final class MainActivity extends Activity {
 
         LinearLayout tuning=Ui.card(this,body);
         tuning.addView(Ui.text(this,t("调到舒服的手感","Tune the feel"),19,Ui.FG));
-        Ui.add(this,tuning,Ui.text(this,t("最大倾斜角度（折到这个角度时效果最强）","Max tilt angle (full effect at this fold)"),13,Ui.MUTED),18,4);
-        RadioGroup rangeGroup=new RadioGroup(this);
-        rangeGroup.setOrientation(LinearLayout.HORIZONTAL);
-        int storedRange=Math.round(prefs.getFloat("range",150f));
-        boolean matched=false;
-        for(int degrees:new int[]{30,60,90,120,150}) {
-            RadioButton option=new RadioButton(this);
-            option.setId(View.generateViewId());option.setTag(degrees);
-            option.setText(degrees+"°");option.setTextSize(13);option.setTextColor(Ui.FG);
-            option.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-            option.setGravity(Gravity.CENTER);
-            rangeGroup.addView(option,new RadioGroup.LayoutParams(0,Ui.dp(this,48),1f));
-            if(storedRange==degrees){rangeGroup.check(option.getId());matched=true;}
-        }
-        if(!matched) {
-            for(int i=0;i<rangeGroup.getChildCount();i++) {
-                RadioButton option=(RadioButton)rangeGroup.getChildAt(i);
-                if(Integer.valueOf(150).equals(option.getTag())) rangeGroup.check(option.getId());
-            }
-            prefs.edit().putFloat("range",150f).apply();EffectPrefs.setRange(this,150f);
-        }
-        rangeGroup.setOnCheckedChangeListener((group,id)-> {
-            View chosen=group.findViewById(id);
-            if(chosen==null||!(chosen.getTag() instanceof Integer))return;
-            float degrees=(Integer)chosen.getTag();
-            prefs.edit().putFloat("range",degrees).apply();
-            EffectPrefs.setRange(this,degrees);
-        });
-        tuning.addView(rangeGroup,new LinearLayout.LayoutParams(-1,-2));
         slider(tuning,t("空间强度（模糊与暗部强度）","Spatial strength (blur & shading)"),20,100,prefs.getFloat("intensity",1)*100,
                 value->{prefs.edit().putFloat("intensity",value/100).apply();EffectPrefs.setIntensity(this,value/100f);},"%");
         Ui.add(this,tuning,Ui.text(this,t("采集分辨率（越高越清晰，越低越跟手；改动在下次折起时生效）","Capture resolution (higher = sharper, lower = snappier; applies on the next fold)"),12,Ui.ACCENT),16,0);

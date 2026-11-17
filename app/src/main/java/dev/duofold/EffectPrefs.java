@@ -12,7 +12,6 @@ public final class EffectPrefs {
     /** Slant of the leaf's side edges; see the shader comment. */
     public static volatile float sideSlant=0f;
     /** Fold angle (degrees) at which the effect reaches full strength. */
-    public static volatile float range=180f;
     /** Blur strength, 0.2 .. 1.0. */
     public static volatile float intensity=1f;
     /** Capture buffer width in pixels; 0 = native panel width. */
@@ -33,7 +32,6 @@ public final class EffectPrefs {
         SharedPreferences prefs=prefs(context);
         heightBias=clamp(prefs.getFloat("heightBias",1f),-1f,1f);
         sideSlant=clamp(prefs.getFloat("sideSlant",0f),-0.6f,0.6f);
-        range=clamp(prefs.getFloat("range",180f),15f,180f);
         intensity=clamp(prefs.getFloat("intensity",1f),0.2f,1f);
         captureWidth=prefs.getInt("captureWidth",0);
         heightCurve=prefs.getFloat("heightCurve",0f);
@@ -45,7 +43,6 @@ public final class EffectPrefs {
 
     public static void set(Context context,float value){heightBias=save(context,"heightBias",value,-1f,1f);}
     public static void setSlant(Context context,float value){sideSlant=save(context,"sideSlant",value,-0.6f,0.6f);}
-    public static void setRange(Context context,float value){range=save(context,"range",value,15f,180f);}
     public static void setIntensity(Context context,float value){intensity=save(context,"intensity",value,0.2f,1f);}
     public static void setCaptureWidth(Context context,int value){
         captureWidth=Math.max(0,value);
