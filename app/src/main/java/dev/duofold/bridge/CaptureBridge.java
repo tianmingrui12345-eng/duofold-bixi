@@ -72,6 +72,34 @@ public final class CaptureBridge extends IFoldBridge.Stub {
             android.util.Log.e("DuoFold","trusted overlay failed",error);
         }
     }
+    @Override public boolean ensureAccessibilityService(String component) {
+        if(component==null || component.isEmpty()) return false;
+        try {
+            String current=exec("settings get secure enabled_accessibility_services");
+            if(current==null) return false;
+            current=current.trim();
+            if("null".equals(current)) current="";
+            for(String part:current.split(":")) if(part.trim().equalsIgnoreCase(component)) return true;
+            String next=current.isEmpty()?component:current+":"+component;
+            exec("settings put secure enabled_accessibility_services "+next);
+            exec("settings put secure accessibility_enabled 1");
+            android.util.Log.i("DuoFold","accessibility restored: "+next);
+            return true;
+        } catch(Throwable error) {
+            android.util.Log.w("DuoFold","accessibility restore failed",error);
+            return false;
+        }
+    }
+
+    private static String exec(String command) throws Exception {
+        java.io.BufferedReader reader=new java.io.BufferedReader(new java.io.InputStreamReader(
+                Runtime.getRuntime().exec(new String[]{"sh","-c",command}).getInputStream()));
+        StringBuilder out=new StringBuilder();
+        for(String line;(line=reader.readLine())!=null;) out.append(line).append('\n');
+        reader.close();
+        return out.toString();
+    }
+
     @Override public Bundle probe() {
         Bundle result=new Bundle();result.putInt("uid",Process.myUid());
         result.putInt("sdk",Build.VERSION.SDK_INT);

@@ -161,6 +161,7 @@ public final class FoldService extends AccessibilityService {
             Toast.makeText(this,status,Toast.LENGTH_LONG).show();return;
         }
         active=true;captureReady=false;generation++;lastFrame=0;frames=0;
+        GuardService.start(this);
         AppFilter.load(this);
         foregroundPkg=resolveForeground();
         started=SystemClock.uptimeMillis();
@@ -235,6 +236,7 @@ public final class FoldService extends AccessibilityService {
     private static final float FLAT_OFFSET_DEGREES=2f;
     private volatile float lastForward;
     private float previousForward;
+    private long flatSince;
     private volatile boolean layerWanted;
     /** Package currently in front; drives the per-app allow list. */
     private volatile String foregroundPkg;
@@ -328,9 +330,19 @@ public final class FoldService extends AccessibilityService {
         // raw value reaches the release threshold while the frame is still visibly bent, and
         // dropping the layer then made the last few degrees snap flat in a single frame.
         float shown=view!=null?view.smoothedDegrees():lastForward;
-        boolean folded=layerWanted
-                ? (lastForward>RELEASE_DEGREES || now-attachedAt<600)
-                : (shown>ATTACH_DEGREES && lastForward>ATTACH_DEGREES);
+        boolean folded;
+        if(layerWanted) {
+            // Hold the layer through brief flat readings: the hinge reports whole degrees and
+            // dips to 0 while the fold is still in progress.
+            if(lastForward>RELEASE_DEGREES) {flatSince=0;folded=true;}
+            else {
+                if(flatSince==0) flatSince=now;
+                folded=now-flatSince<350 || now-attachedAt<600;
+            }
+        } else {
+            flatSince=0;
+            folded=shown>ATTACH_DEGREES && lastForward>ATTACH_DEGREES;
+        }
         String front=resolveForeground();
         if(front!=null) foregroundPkg=front;
         boolean allowed=AppFilter.allows(foregroundPkg);
@@ -595,6 +607,8 @@ public final class FoldService extends AccessibilityService {
     }
     public void stopSession(String reason) {
         if(recovery!=null) {recovery.stop();saveRecovery();}
+        // Only an explicit stop ends the guard; an accessibility drop must leave it running.
+        GuardService.stop(this);
         releaseSession(reason);
     }
     private void releaseSession(String reason) {
@@ -621,9 +635,10 @@ public final class FoldService extends AccessibilityService {
     }
     @Override public void onConfigurationChanged(Configuration config) {
         super.onConfigurationChanged(config);
-        // One path only. The old copy attached the layer directly, which skipped both the fold
-        // test and the per-app filter: rotating inside an excluded app showed the effect.
-        rebuildLayer();
+        // Every fold fires a configuration change. Rebuilding on all of them tore the layer down
+        // and rebuilt it mid-gesture, which is what made the effect come and go. Only a real
+        // size/rotation change needs a fresh layer.
+        if(layerAttached && displaySizeChanged()) rebuildLayer();
     }
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         if(active && !screenUsable()) suspendSession(t("屏幕已锁定，解锁后自动恢复","Screen locked; resumes after unlock"));

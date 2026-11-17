@@ -12,5 +12,7 @@ interface IFoldBridge {
     void heartbeat() = 4;
     void stop() = 5;
     void makeGlassPassThrough(in SurfaceControl layer) = 8;
+    /** Re-adds this app's accessibility service after another app rewrote the setting. */
+    boolean ensureAccessibilityService(String component) = 9;
     void destroy() = 16777114;
 }
