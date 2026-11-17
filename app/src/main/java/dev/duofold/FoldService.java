@@ -490,8 +490,10 @@ public final class FoldService extends AccessibilityService {
             // No capture start here: the pre-roll already began it while the layer was invisible.
             // Starting twice ran two capture loops against one surface and the second call
             // returned a null buffer, which killed the session.
-            if(captureSurface!=null && captureSurface.isValid() && !captureReady
-                    && lastForward>PREROLL_DEGREES) beginCapture(captureSurface,captureWidth,captureHeight);
+            main.postDelayed(()-> {
+                if(active && layerAttached && !captureReady && view!=null)
+                    beginCapture(captureSurface,captureWidth,captureHeight);
+            },120);
         } catch(Throwable error) {
             android.util.Log.e("DuoFold","attach layer",error);
             sessionFailed(t("无法创建显示图层","Could not create the display layer"));
@@ -527,7 +529,7 @@ public final class FoldService extends AccessibilityService {
     private void beginCapture(Surface surface,int w,int h) {
         if(!active || view==null || captureStarting) return;
         captureStarting=true;
-        clearMotionSources();captureReady=false;started=SystemClock.uptimeMillis();lastFrame=0;
+        clearMotionSources();captureReady=false;started=SystemClock.uptimeMillis();lastFrame=started;
         SurfaceControl exclude=glassLayer;
         android.util.Log.i("DuoFold","capture start exclude="+(exclude==null?"null":("valid="+exclude.isValid())));
         Bundle options=new Bundle();if(exclude!=null)options.putParcelable("exclude",exclude);
