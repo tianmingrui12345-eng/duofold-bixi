@@ -237,6 +237,10 @@ public final class FoldService extends AccessibilityService {
     private volatile float lastForward;
     private float previousForward;
     private long flatSince;
+    private int surfaceGeneration;
+    private int capturedGeneration=-1;
+    /** Bumped on every start so late frames from a stopped loop cannot revive it. */
+    private volatile int captureId;
     private volatile boolean layerWanted;
     /** Package currently in front; drives the per-app allow list. */
     private volatile String foregroundPkg;
@@ -354,10 +358,7 @@ public final class FoldService extends AccessibilityService {
         // of degrees early means the layer is already fed when it becomes visible.
         boolean closing=lastForward>previousForward;
         previousForward=lastForward;
-        if(!layerAttached && closing && captureSurface!=null && captureSurface.isValid() && !captureReady
-                && lastForward>PREROLL_DEGREES && view!=null) {
-            beginCapture(captureSurface,captureWidth,captureHeight);
-        }
+        if(!layerAttached && closing && lastForward>PREROLL_DEGREES) startCaptureIfNeeded();
         if(layerAttached && displaySizeChanged()) {rebuildLayer();return;}
         boolean want=folded && innerDisplayActive() && allowed;
         if(want!=layerWanted) android.util.Log.i("DuoFold","sync want="+want
@@ -404,7 +405,7 @@ public final class FoldService extends AccessibilityService {
         recoverCapture();
     }
     private void stopCapture() {
-        captureReady=false;captureStarting=false;
+        captureReady=false;captureStarting=false;capturedGeneration=-1;
         try {IFoldBridge bridge=client.service();if(bridge!=null)bridge.stop();}catch(Exception ignored){}
     }
     /** True when the panel is no longer the size the current layer was built for. */
@@ -434,6 +435,10 @@ public final class FoldService extends AccessibilityService {
             view=new FoldView(this,new FoldView.Listener() {
                 @Override public void onReady(Surface surface,int cw,int ch) {
                     captureSurface=surface;captureWidth=cw;captureHeight=ch;
+                    surfaceGeneration++;
+                    // The capture must start on this surface: the one held when the layer was
+                    // attached still belonged to the previous view and delivered nothing.
+                    if(active && layerWanted) main.post(FoldService.this::startCaptureIfNeeded);
                 }
                 @Override public void onFirstFrame() {}
                 @Override public void onError(String message) {
@@ -490,10 +495,7 @@ public final class FoldService extends AccessibilityService {
             // No capture start here: the pre-roll already began it while the layer was invisible.
             // Starting twice ran two capture loops against one surface and the second call
             // returned a null buffer, which killed the session.
-            main.postDelayed(()-> {
-                if(active && layerAttached && !captureReady && view!=null)
-                    beginCapture(captureSurface,captureWidth,captureHeight);
-            },120);
+            startCaptureIfNeeded();
         } catch(Throwable error) {
             android.util.Log.e("DuoFold","attach layer",error);
             sessionFailed(t("无法创建显示图层","Could not create the display layer"));
@@ -526,12 +528,27 @@ public final class FoldService extends AccessibilityService {
         android.util.Log.i("DuoFold","layer released in "+(SystemClock.uptimeMillis()-started)+"ms"+(unfoldStartedAt>0?" ("+(SystemClock.uptimeMillis()-unfoldStartedAt)+"ms after unfold began)":""));
         unfoldStartedAt=0;
     }
+    /** Starts the mirror only when the surface belongs to the current view and none is running. */
+    private void startCaptureIfNeeded() {
+        if(!active || view==null || captureStarting) return;
+        // SurfaceFlinger has not finished applying the overlay attach for ~200 ms, and a capture
+        // asked for inside that window always comes back with a null buffer.
+        long sinceAttach=SystemClock.uptimeMillis()-attachedAt;
+        if(layerAttached && sinceAttach<250) {
+            main.postDelayed(this::startCaptureIfNeeded,250-sinceAttach);
+            return;
+        }
+        if(captureReady && capturedGeneration==surfaceGeneration) return;
+        if(captureSurface==null || !captureSurface.isValid()) return;
+        beginCapture(captureSurface,captureWidth,captureHeight);
+    }
     private void beginCapture(Surface surface,int w,int h) {
         if(!active || view==null || captureStarting) return;
-        captureStarting=true;
+        captureStarting=true;capturedGeneration=surfaceGeneration;
+        final int captureId=++this.captureId;
         clearMotionSources();captureReady=false;started=SystemClock.uptimeMillis();lastFrame=started;
         SurfaceControl exclude=glassLayer;
-        android.util.Log.i("DuoFold","capture start exclude="+(exclude==null?"null":("valid="+exclude.isValid())));
+        android.util.Log.i("DuoFold","capture start gen="+surfaceGeneration+" exclude="+(exclude==null?"null":("valid="+exclude.isValid())));
         Bundle options=new Bundle();if(exclude!=null)options.putParcelable("exclude",exclude);
         options.putInt("width",w);options.putInt("height",h);options.putInt("fps",120);
         options.putInt("displayWidth",view.getWidth());options.putInt("displayHeight",view.getHeight());
@@ -544,11 +561,11 @@ public final class FoldService extends AccessibilityService {
                 bridge.start(surface,options,new ICaptureListener.Stub() {
                     @Override public void onFrame(long sequence,long timestampMs) {
                         main.post(()-> {
-                            if(!active || session!=generation) return;
+                            if(!active || session!=generation || captureId!=FoldService.this.captureId) return;
                             lastFrame=SystemClock.uptimeMillis();frames=sequence;captureRetries=0;
                             if(sequence%120==0) android.util.Log.i("DuoFold","frames="+sequence);
                             if(!captureReady) {
-                                captureReady=true;
+                                captureReady=true;captureStarting=false;
                                 if(!screenUsable()) {suspendSession(t("等待解锁","Waiting for unlock"));return;}
                                 try {clearMotionSources();recovery.recovered();status=runningStatus();}
                                 catch(RuntimeException e) {sessionFailed(e.toString());}
@@ -556,13 +573,14 @@ public final class FoldService extends AccessibilityService {
                         });
                     }
                     @Override public void onError(String message) {main.post(()->{
-                        if(session!=generation) return;
+                        if(session!=generation || captureId!=FoldService.this.captureId) return;
+                        captureStarting=false;
                         if(message!=null && message.contains("denied screen capture")) captureRefused(message);
                         else sessionFailed(message);
                     });}
                 });
-            } catch(Exception e) {main.post(()->{if(session==generation) sessionFailed(e.toString());});}
-            finally {main.post(()->captureStarting=false);}
+            } catch(Exception e) {main.post(()->{captureStarting=false;if(session==generation) sessionFailed(e.toString());});}
+
         });
     }
     private final Runnable watchdog=new Runnable() {
