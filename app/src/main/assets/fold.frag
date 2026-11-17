@@ -21,6 +21,9 @@ uniform int uEffectStyle;
 uniform float uHoverBlur;
 uniform float uCornerRadius;
 uniform float uCornerPower;
+uniform float uFoldDegrees; // real fold in degrees; the geometry axis is clamped at 80
+uniform float uDimStart;   // fold degrees where the moving half starts to darken
+uniform float uReflFull;   // fold degrees where the reflection is fully lit
 varying vec2 vUv;
 
 /**
@@ -67,6 +70,28 @@ vec2 uvToLeaf(vec2 uv) {
     if(uLandscape<0.5) return vec2((uv.x-0.5)*uSizePoints.x,(0.5-uv.y)*uSizePoints.y);
     float across=uFlip<0.5?(0.5-uv.x):(uv.x-0.5);
     return vec2((uv.y-0.5)*uSizePoints.y,across*uSizePoints.x);
+}
+
+/**
+ * The static half mirrored across the hinge: past 90 degrees the moving half is turned towards
+ * the user and shows what is below the hinge, reflected.
+ */
+vec3 readReflection(vec2 uv) {
+    vec2 q=uvToLeaf(uv);
+    q.y=-q.y;
+    return readScreen(leafToUv(q));
+}
+/**
+ * Fades the moving half to black as the fold reaches 90 degrees, then brings the reflection of
+ * the static half up. Both sides of the middle are gradual, and both directions of a fold run
+ * the same curve so opening is the mirror of closing.
+ */
+vec3 withReflection(vec3 base,vec2 uv) {
+    float deg=uFoldDegrees;
+    vec3 colour=base*(1.0-smoothstep(uDimStart,90.0,deg));
+    if(deg<=91.0) return colour;
+    float lit=smoothstep(90.0,uReflFull,deg);
+    return mix(colour,readReflection(uv),lit);
 }
 
 void main() {
@@ -125,7 +150,7 @@ void main() {
     }
 
     if(radiusPoints<0.5) {
-        gl_FragColor=vec4(readScreen(leafToUv(hitP))*attenuation*ramp,ramp);return;
+        gl_FragColor=vec4(withReflection(readScreen(leafToUv(hitP))*attenuation,vUv)*ramp,ramp);return;
     }
     float taps=clamp(floor(radiusPoints*3.0),8.0,48.0);
     float rotation=uEffectStyle==2?0.0:hash21(vUv*uSizePoints)*6.28318530718;
@@ -140,5 +165,5 @@ void main() {
         sum+=weight*readScreen(leafToUv(tap));
         weights+=weight;
     }
-    gl_FragColor=vec4(sum/weights*attenuation*ramp,ramp);
+    gl_FragColor=vec4(uFoldDegrees/255.0,smoothstep(90.0,uReflFull,uFoldDegrees),dot(readReflection(vUv,0.8*(uFoldDegrees-90.0)),vec3(0.3333)));
 }

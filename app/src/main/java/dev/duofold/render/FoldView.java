@@ -159,6 +159,10 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             scalar("uHeightCurve",dev.duofold.EffectPrefs.heightCurve);
             scalar("uCornerRadius",dev.duofold.EffectPrefs.cornerRadius);
             scalar("uCornerPower",dev.duofold.EffectPrefs.cornerPower);
+            // 0.4 fold look: dark by 90 degrees, reflection of the static half past it.
+            scalar("uFoldDegrees",foldDegrees);
+            scalar("uDimStart",70f);
+            scalar("uReflFull",112f);
             // Landscape: the hinge line turns vertical, so the leaf is the left (rotation 90)
             // or right (rotation 270) half of the panel.
             boolean landscape=width>height;
