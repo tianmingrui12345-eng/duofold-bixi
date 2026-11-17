@@ -174,10 +174,10 @@ public final class FoldService extends AccessibilityService {
             dev.duofold.motion.HingeTiltSensor.Listener pose=(p,forwardDegrees,sideDegrees)-> {
                 progress=p;
                 // The ray-projection model saturates at 80 degrees of tilt (FoldModel clamps
-                // there), so the physical fold is mapped onto that ceiling: 150 degrees of real
+                // there), so the physical fold is mapped onto that ceiling: 120 degrees of real
                 // fold fill it.
                 float ceiling=80f;
-                float scale=ceiling/150f;
+                float scale=ceiling/120f;
                 float unfolded=Math.max(0f,forwardDegrees-FLAT_OFFSET_DEGREES);
                 float effective=Math.min(ceiling,unfolded*scale);
                 // Past 60 degrees of physical fold the effect closes the remaining gap faster,
