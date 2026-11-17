@@ -56,7 +56,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
     }
     /** Low-pass time constant: long enough to hide the hinge's 1-degree steps, short enough to
      *  feel attached to the hinge. 150 ms felt laggy, 70 ms still slightly heavy; 60 ms now. */
-    private static final float SMOOTH_TAU=0.06f;
     private volatile float targetForward,targetSide,targetIntensity=1f;
     private volatile float smoothForward;
     private float smoothSide;
@@ -109,21 +108,17 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             if(newFrame) { newFrame=false; texture.updateTexImage(); texture.getTransformMatrix(matrix); hasFrame=true; }
             if(!hasFrame) return;
             EffectStyle style=effectStyle;
-            // ~150 ms low-pass: the hinge reports whole degrees, so without this the start of
-            // the fold jumps straight from 0 to 2 degrees instead of easing in.
-            if(smoothNanos==0) {smoothForward=targetForward;smoothSide=targetSide;}
-            long smoothNow=System.nanoTime();
-            float sdt=smoothNanos==0?0f:Math.min(0.1f,(smoothNow-smoothNanos)/1e9f);
-            smoothNanos=smoothNow;
-            float k=sdt<=0f?1f:1f-(float)Math.exp(-sdt/SMOOTH_TAU);
-            smoothForward+=(targetForward-smoothForward)*k;
-            smoothSide+=(targetSide-smoothSide)*k;
-            boolean settling=Math.abs(targetForward-smoothForward)>0.0005f
-                    || Math.abs(targetSide-smoothSide)>0.0005f;
-            if(!settling) {smoothForward=targetForward;smoothSide=targetSide;}
-            else postDelayed(this::requestRender,16);
+            // Track the hinge with no lag: any low-pass here reads as the effect trailing the
+            // fold. The ease-in lives in the first 2 degrees only, which is all the soft start
+            // needs — the rest of the travel renders the angle it is given.
+            smoothForward=targetForward;
+            smoothSide=targetSide;
+            smoothNanos=0;
+            float foldDegrees=(float)Math.toDegrees(smoothForward);
+            float startFade=Math.min(1f,Math.max(0f,foldDegrees/2f));
+            float eased=startFade*startFade*(3f-2f*startFade);
             float density=getResources().getDisplayMetrics().density;
-            FoldModel.State s=FoldModel.atAxes(smoothForward,smoothSide,targetIntensity,
+            FoldModel.State s=FoldModel.atAxes(smoothForward*eased,smoothSide,targetIntensity,
                     Math.max(1,width)/density,Math.max(1,height)/density);
             state=s;
             long now=System.nanoTime();

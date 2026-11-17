@@ -71,6 +71,16 @@ final class Ui {
         return button;
     }
 
+    /** Done steps read as filled accent buttons, pending ones stay dark. */
+    static void setFilled(Button button,boolean filled) {
+        if(button==null) return;
+        GradientDrawable shape=new GradientDrawable();
+        shape.setColor(filled?ACCENT:FILLED_BUTTON);
+        shape.setCornerRadius(dp(button.getContext(),16));
+        button.setBackground(shape);
+        button.setTextColor(filled?BG:ACCENT);
+    }
+
     /** Keeps content clear of the status bar and the gesture bar. */
     static void applyInsets(android.view.View root,int horizontal,int top,int bottom) {
         root.setOnApplyWindowInsetsListener((v,insets)-> {

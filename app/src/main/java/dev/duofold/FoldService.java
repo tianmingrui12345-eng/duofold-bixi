@@ -225,10 +225,10 @@ public final class FoldService extends AccessibilityService {
     // The effect is already invisible below ~5 degrees (blur radius under 1 pt), so the layer is
     // dropped there instead of at the flat position. That hands input back while the hinge is
     // still moving, which is what makes the end of the unfold feel attached to the finger.
-    private static final float ATTACH_DEGREES=1.5f;
-    private static final float RELEASE_DEGREES=0.8f;
+    private static final float ATTACH_DEGREES=2.0f;
+    private static final float RELEASE_DEGREES=1.0f;
     /** Start mirroring here, before the layer is shown, so the first visible frame exists. */
-    private static final float PREROLL_DEGREES=0.3f;
+    private static final float PREROLL_DEGREES=0.5f;
     /**
      * The hinge reads 0-180 with ~1 degree of bias and quantises to whole degrees, so the
      * first 2 degrees are treated as flat. Everything is measured from there.

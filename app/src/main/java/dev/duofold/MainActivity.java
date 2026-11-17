@@ -34,7 +34,7 @@ public final class MainActivity extends Activity {
     private BridgeClient client;
     private SharedPreferences prefs;
     private TextView bridgeStatus,accessStatus,liveStatus,progressText;
-    private Button start;
+    private Button start,stepShizuku,stepService,stepSpecial;
     private TextView appFilterStatus;
     private boolean pendingStart;
     private final Runnable update=new Runnable() {
@@ -63,9 +63,9 @@ public final class MainActivity extends Activity {
         LinearLayout setup=Ui.card(this,body);
         setup.addView(Ui.text(this,t("开启步骤","Setup"),22,Ui.FG));
         bridgeStatus=Ui.text(this,client.message(),13,Ui.MUTED);setup.addView(bridgeStatus);
-        Ui.button(this,setup,t("01   连接并授权 Shizuku","01   Connect & authorize Shizuku"),()->client.request(),false);
+        stepShizuku=Ui.button(this,setup,t("01   连接并授权 Shizuku","01   Connect & authorize Shizuku"),()->client.request(),false);
         accessStatus=Ui.text(this,t("等待辅助服务","Waiting for accessibility service"),13,Ui.MUTED);Ui.add(this,setup,accessStatus,12,0);
-        Ui.button(this,setup,t("02   开启屏幕效果辅助服务","02   Enable the screen effect service"),this::openAccessibility,false);
+        stepService=Ui.button(this,setup,t("02   开启屏幕效果辅助服务","02   Enable the screen effect service"),this::openAccessibility,false);
         // MIUI freezes background apps after a few seconds and drops the effect service with
         // them, so ask for the battery-optimisation exemption up front.
         Ui.button(this,setup,t("02b  允许后台运行（关闭电池优化）","02b  Allow background running"),()-> {
@@ -81,7 +81,7 @@ public final class MainActivity extends Activity {
                 "The accessibility service shows the effect and remaps touches. Frames stay in local memory: never saved, never uploaded."),12,Ui.MUTED),10,0);
         liveStatus=Ui.text(this,t("点下面的按钮开启效果","Tap the button below to start"),14,Ui.FG);Ui.add(this,setup,liveStatus,16,0);
         progressText=Ui.text(this,"",12,Ui.MUTED);Ui.add(this,setup,progressText,6,0);
-        start=Ui.button(this,setup,t("03   开启全局效果","03   Start full-screen effect"),()-> {
+        stepSpecial=start=Ui.button(this,setup,t("03   开启全局效果","03   Start full-screen effect"),()-> {
             FoldService s=FoldService.current();
             if(s!=null && (s.isActive() || s.isResumePending())) s.stopSession(t("已手动停止","Stopped manually"));else requestStart();
         },false);
@@ -235,6 +235,10 @@ public final class MainActivity extends Activity {
         liveStatus.setText(s!=null?s.status():prefs.getString("lastStatus",t("点下面的按钮开启效果","Tap the button below to start")));
         progressText.setText(active?t("展开 "+Math.round(s.progress()*100)+"%  ·  已更新 "+s.frames()+" 帧",
                 "Fold "+Math.round(s.progress()*100)+"%  ·  "+s.frames()+" frames updated"):"");
+        // Done steps light up, pending ones stay dark.
+        Ui.setFilled(stepShizuku,client.service()!=null);
+        Ui.setFilled(stepService,s!=null);
+        Ui.setFilled(stepSpecial,active || s!=null && s.isResumePending());
         start.setText((active || s!=null && s.isResumePending())?t("停止并恢复原始屏幕","Stop & restore original screen"):t("03   开启全局效果","03   Start full-screen effect"));
         start.setEnabled(active || s!=null && (s.isResumePending() || client.service()!=null));
     }
