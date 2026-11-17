@@ -145,7 +145,13 @@ void main() {
     // Past the right angle the two halves come together again, so the reflection loses the
     // compression and the blur and ends up as clear as the flat screen.
     float settle=smoothstep(DIM_FULL,CLEAR_FULL,uFoldDegrees);
-    vec2 samplePoint=mix(mirrorPoint(hitP),vec2(p.x,-p.y),settle);
+    // Towards the hinge the sampling converges on the flat point, so the moving half reads the
+    // same source as the static half there. That is what lets the crease crossfade without the
+    // two pictures drifting apart into a double image.
+    float flatPoint=(uFoldDegrees>DIM_FULL)?1.0:0.0;
+    float pull=max(1.0-smoothstep(0.0,HINGE_FEATHER*2.0,fromHinge),settle);
+    vec2 targetPoint=mix(p,vec2(p.x,-p.y),flatPoint);
+    vec2 samplePoint=mix(mirrorPoint(hitP),targetPoint,pull);
 
     float radiusPoints=0.12*gap*uIntensity*blurRamp;
     float attenuation=max(1.0-0.015*radiusPoints,0.0);
