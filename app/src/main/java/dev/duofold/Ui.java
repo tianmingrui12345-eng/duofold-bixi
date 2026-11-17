@@ -1,7 +1,6 @@
 package dev.duofold;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.Button;

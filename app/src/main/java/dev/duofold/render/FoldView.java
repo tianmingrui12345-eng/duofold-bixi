@@ -37,7 +37,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
     private SurfaceTexture texture;
     private Surface input;
     private int program,textureId,width,height;
-    private int frameLog;
     private int captureWidth,captureHeight;
     private volatile boolean newFrame,hasFrame;
     private boolean firstFrameReported;
@@ -66,7 +65,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
     private volatile float realFoldDegrees;
     private volatile float smoothForward;
     private float smoothSide;
-    private long smoothNanos;
 
     /** The angle actually being rendered, in degrees of fold (after the low-pass). */
     public float smoothedDegrees() {return (float)Math.toDegrees(smoothForward);}
@@ -121,7 +119,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             // in a single frame and looks like a jump.
             smoothForward=targetForward;
             smoothSide=targetSide;
-            smoothNanos=0;
             float foldDegrees=(float)Math.toDegrees(smoothForward);
             long gainNow=System.nanoTime();
             float gainDt=gainNanos==0?0f:Math.min(0.05f,(gainNow-gainNanos)/1e9f);
