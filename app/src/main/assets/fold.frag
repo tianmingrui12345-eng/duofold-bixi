@@ -9,7 +9,6 @@
 precision highp float;
 uniform samplerExternalOES uScreen;
 uniform mat4 uTextureMatrix;
-uniform vec2 uResolution;
 uniform vec2 uAngles;
 uniform vec2 uSizePoints;
 uniform float uIntensity;

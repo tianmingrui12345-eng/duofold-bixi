@@ -413,7 +413,6 @@ public final class FoldService extends AccessibilityService {
         wm.getDefaultDisplay().getRealMetrics(metrics);
         return metrics.widthPixels!=preparedWidth || metrics.heightPixels!=preparedHeight;
     }
-    private SurfaceControl preparedControl;
     private int preparedWidth,preparedHeight;
     private boolean layerAttached;
 
@@ -457,7 +456,7 @@ public final class FoldService extends AccessibilityService {
                 IFoldBridge bridge=client.service();
                 if(bridge!=null) bridge.makeGlassPassThrough(control);
             } catch(Exception error) {android.util.Log.w("DuoFold","pass-through",error);}
-            glassLayer=control;preparedControl=control;layerAttached=false;
+            glassLayer=control;layerAttached=false;
             preparedWidth=w;preparedHeight=h;
             android.util.Log.i("DuoFold","layer prepared in "+(SystemClock.uptimeMillis()-startedPrepare)+"ms "+w+"x"+h);
         } catch(Throwable error) {
@@ -470,12 +469,12 @@ public final class FoldService extends AccessibilityService {
     private void attachLayer() {
         // Half-open posture can switch the inner panel to a different rotation, and a layer
         // built for the old size is cropped to nothing (it stays invisible). Rebuild to match.
-        if(preparedControl!=null && displaySizeChanged()) {
+        if(glassLayer!=null && displaySizeChanged()) {
             android.util.Log.i("DuoFold","display size changed, rebuilding layer");
             releaseGlassHost();
             prepareLayer();
         }
-        SurfaceControl control=preparedControl;
+        SurfaceControl control=glassLayer;
         if(control==null) return;
         try {
             long startedAttach=SystemClock.uptimeMillis();
@@ -512,7 +511,7 @@ public final class FoldService extends AccessibilityService {
     private void releaseGlassHost() {
         SurfaceControl layer=glassLayer;
         SurfaceControlViewHost host=glassHost;
-        glassHost=null;glassLayer=null;preparedControl=null;layerAttached=false;
+        glassHost=null;glassLayer=null;layerAttached=false;
         long started=SystemClock.uptimeMillis();
         if(layer!=null) {
             try(SurfaceControl.Transaction transaction=new SurfaceControl.Transaction()) {
@@ -546,7 +545,7 @@ public final class FoldService extends AccessibilityService {
                             if(!active || session!=generation) return;
                             lastFrame=SystemClock.uptimeMillis();frames=sequence;captureRetries=0;
                             if(sequence%120==0) android.util.Log.i("DuoFold","frames="+sequence);
-                            if(Build.VERSION.SDK_INT>=31 && !captureReady) {
+                            if(!captureReady) {
                                 captureReady=true;
                                 if(!screenUsable()) {suspendSession(t("等待解锁","Waiting for unlock"));return;}
                                 try {clearMotionSources();recovery.recovered();status=runningStatus();}

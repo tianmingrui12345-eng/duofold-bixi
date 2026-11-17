@@ -144,7 +144,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,textureId);
             GLES20.glUniform1i(location("uScreen"),0);
             GLES20.glUniformMatrix4fv(location("uTextureMatrix"),1,false,matrix,0);
-            GLES20.glUniform2f(location("uResolution"),width,height);
             GLES20.glUniform2f(location("uAngles"),s.angleX,s.angleY);
             GLES20.glUniform2f(location("uSizePoints"),s.widthPoints,s.heightPoints);
             scalar("uIntensity",s.intensity);
