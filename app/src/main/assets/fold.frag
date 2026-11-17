@@ -76,25 +76,20 @@ vec2 uvToLeaf(vec2 uv) {
     return vec2((uv.y-0.5)*uSizePoints.y,across*uSizePoints.x);
 }
 
-/**
- * The static half mirrored across the hinge: past 90 degrees the moving half is turned towards
- * the user and shows what is below the hinge, reflected.
- */
-vec3 readReflection(vec2 uv) {
-    vec2 q=uvToLeaf(uv);
-    q.y=-q.y;
-    return readScreen(leafToUv(q));
+/** Point in leaf space to sample: past the right angle the moving half shows the static half,
+ * mirrored across the hinge, and everything else (compression, blur, attenuation) stays the same
+ * so the reflection animates exactly like the picture did before the right angle. */
+vec2 mirrorPoint(vec2 leafPoint) {
+    return uFoldDegrees>DIM_FULL?vec2(leafPoint.x,-leafPoint.y):leafPoint;
 }
 /**
- * Fades the moving half to black as the fold reaches 90 degrees, then brings the reflection of
- * the static half up. Both sides of the middle are gradual, and both directions of a fold run
- * the same curve so opening is the mirror of closing.
+ * Darkens the moving half as the fold approaches the right angle, then brings the brightness
+ * back up on the far side so the reflection rises out of black. Both ends are gradual.
  */
-vec3 withReflection(vec3 base,vec2 uv) {
+vec3 litFold(vec3 base) {
     float deg=uFoldDegrees;
-    vec3 colour=base*(1.0-smoothstep(DIM_START,DIM_FULL,deg));
-    if(deg<=DIM_FULL) return colour;
-    return mix(colour,readReflection(uv),smoothstep(DIM_FULL,REFL_FULL,deg));
+    float k=deg<=DIM_FULL?1.0-smoothstep(DIM_START,DIM_FULL,deg):smoothstep(DIM_FULL,REFL_FULL,deg);
+    return base*k;
 }
 /**
  * Crossfades the moving half into the static half over the last points before the hinge: the
@@ -161,7 +156,7 @@ void main() {
     }
 
     if(radiusPoints<0.5) {
-        gl_FragColor=vec4(feathered(withReflection(readScreen(leafToUv(hitP))*attenuation,vUv),vUv,fromHinge)*ramp,ramp);return;
+        gl_FragColor=vec4(feathered(litFold(readScreen(leafToUv(mirrorPoint(hitP)))*attenuation),vUv,fromHinge)*ramp,ramp);return;
     }
     float taps=clamp(floor(radiusPoints*3.0),8.0,48.0);
     float rotation=uEffectStyle==2?0.0:hash21(vUv*uSizePoints)*6.28318530718;
@@ -173,8 +168,8 @@ void main() {
         float a=float(i)*2.39996322973+rotation;
         float weight=uEffectStyle==2?exp(-3.0*r*r):1.0;
         vec2 tap=hitP+radiusPoints*r*vec2(cos(a),sin(a));
-        sum+=weight*readScreen(leafToUv(tap));
+        sum+=weight*readScreen(leafToUv(mirrorPoint(tap)));
         weights+=weight;
     }
-    gl_FragColor=vec4(feathered(withReflection(sum/weights*attenuation,vUv),vUv,fromHinge)*ramp,ramp);
+    gl_FragColor=vec4(feathered(litFold(sum/weights*attenuation),vUv,fromHinge)*ramp,ramp);
 }
