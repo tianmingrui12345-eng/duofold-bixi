@@ -22,7 +22,6 @@ import dev.duofold.motion.HoverBlur;
 public final class FoldView extends android.opengl.GLSurfaceView implements android.opengl.GLSurfaceView.Renderer {
     public interface Listener {
         void onReady(Surface input,int width,int height);
-        void onFirstFrame();
         void onError(String message);
     }
     private final Listener listener;
@@ -176,7 +175,6 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             if(style==EffectStyle.SETTLE && (targetHover>0 || displayedHover>0))postDelayed(settleFrame,16);
             if(!firstFrameReported) {
                 firstFrameReported=true;
-                post(listener::onFirstFrame);
             }
         } catch(Exception e) { post(()->listener.onError("GPU frame: "+e.getMessage())); }
     }

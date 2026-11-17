@@ -193,8 +193,6 @@ public final class FoldService extends AccessibilityService {
                 // The layer's on/off decision must follow the real hinge angle: using the
                 // scaled value kept the layer attached (and the screen untouchable) whenever
                 // the max-tilt preset was small.
-                if(unfolded<lastForward-0.05f && layerWanted && unfoldStartedAt==0)
-                    unfoldStartedAt=SystemClock.uptimeMillis();
                 lastForward=unfolded;
                 if(view!=null && active) view.setFold(
                         (float)Math.toRadians(effective),(float)Math.toRadians(sideDegrees),
@@ -288,7 +286,6 @@ public final class FoldService extends AccessibilityService {
     /** When the layer was last attached: guards against attach/release flapping. */
     private long attachedAt;
     /** First frame where the fold was seen closing, used to log the release latency. */
-    private long unfoldStartedAt;
     private boolean lastGateFolded,lastGateAllowed;
     private String lastGatePkg;
     private static boolean equal(String a,String b) {return a==null?b==null:a.equals(b);}
@@ -440,7 +437,6 @@ public final class FoldService extends AccessibilityService {
                     // attached still belonged to the previous view and delivered nothing.
                     if(active && layerWanted) main.post(FoldService.this::startCaptureIfNeeded);
                 }
-                @Override public void onFirstFrame() {}
                 @Override public void onError(String message) {
                     if(overlayGeneration==generation) sessionFailed(message);
                 }
@@ -525,8 +521,7 @@ public final class FoldService extends AccessibilityService {
         if(host!=null) {
             try{host.release();}catch(Throwable error){android.util.Log.w("DuoFold","release host",error);}
         }
-        android.util.Log.i("DuoFold","layer released in "+(SystemClock.uptimeMillis()-started)+"ms"+(unfoldStartedAt>0?" ("+(SystemClock.uptimeMillis()-unfoldStartedAt)+"ms after unfold began)":""));
-        unfoldStartedAt=0;
+        android.util.Log.i("DuoFold","layer released in "+(SystemClock.uptimeMillis()-started)+"ms");
     }
     /** Starts the mirror only when the surface belongs to the current view and none is running. */
     private void startCaptureIfNeeded() {
@@ -588,10 +583,9 @@ public final class FoldService extends AccessibilityService {
             if(!active) return;
             if(!screenUsable()) {suspendSession(t("屏幕已锁定，解锁后自动恢复","Screen locked; resumes after unlock"));return;}
             long now=SystemClock.uptimeMillis();
-            boolean liveCapture=Build.VERSION.SDK_INT>=31;
             // A capture that was just (re)started has lastFrame 0 and frames 0 for a moment;
             // treating that as a stall made the watchdog restart it in a loop.
-            if(layerWanted && ((liveCapture && lastFrame>0 && now-lastFrame>1500)
+            if(layerWanted && ((lastFrame>0 && now-lastFrame>1500)
                     || (lastFrame==0 && now-started>5000 && now-attachedAt>4000))) {
                 // Switching to another app (or the panel changing) can drop the capture while
                 // the layer is still up. Restart it instead of tearing the session down.
