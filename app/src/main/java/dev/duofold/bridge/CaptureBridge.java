@@ -207,6 +207,12 @@ public final class CaptureBridge extends IFoldBridge.Stub {
         });
     }
 
+    /** Reads one of the diagnostic flags on the sync listener; absent on older releases. */
+    private static String readBool(Object target,String name) {
+        try {return String.valueOf(target.getClass().getMethod(name).invoke(target));}
+        catch(Throwable ignored) {return "?";}
+    }
+
     private void markExcluded(SurfaceControl layer) throws Exception {
         try(SurfaceControl.Transaction transaction=new SurfaceControl.Transaction()) {
             boolean applied=false;
@@ -327,6 +333,11 @@ public final class CaptureBridge extends IFoldBridge.Stub {
                         Object sync=newSyncListener();
                         capture.invoke(windowManager,0,captureArgs,sync);
                         screenshot=getCaptureBuffer.invoke(sync);
+                        if(screenshot==null) android.util.Log.w("DuoFold","capture null: backend="+backendName()
+                                +" exclude="+(exclude!=null)+" size="+width+"x"+height
+                                +" args="+(captureArgs==null?"null":"ok")
+                                +" missing="+readBool(sync,"isMissingPermission")
+                                +" secure="+readBool(sync,"isSecureLayer"));
                     } else screenshot=capture.invoke(null,captureArgs);
                     if(screenshot==null)throw new IllegalStateException("System denied screen capture or returned no buffer.");
                     Class<?> sc=screenshot.getClass();

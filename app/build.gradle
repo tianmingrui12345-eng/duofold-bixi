@@ -8,8 +8,8 @@ android {
         applicationId 'dev.duofold'
         minSdk 29
         targetSdk 35
-        versionCode 64
-        versionName '0.13'
+        versionCode 65
+        versionName '0.14'
         testInstrumentationRunner 'android.test.InstrumentationTestRunner'
     }
     flavorDimensions 'api'
