@@ -27,8 +27,7 @@ uniform float uFoldDegrees; // real fold in degrees; the geometry axis is clampe
 const float DIM_START=60.0;
 const float DIM_FULL=88.0;
 const float REFL_FULL=118.0;
-const float HINGE_FEATHER=80.0; // points of shading before the hinge
-const float HINGE_BLUR=30.0;    // extra blur right at the crease
+const float HINGE_FEATHER=45.0;
 // Fully closed, the reflection is the same picture as a flat screen: no compression, no blur.
 const float CLEAR_FULL=178.0;
 varying vec2 vUv;
@@ -98,13 +97,10 @@ vec3 litFold(vec3 base) {
  * Crossfades the moving half into the static half over the last points before the hinge: the
  * darkened upper half otherwise meets the untouched lower half in a hard line.
  */
-vec3 creased(vec3 colour,float fromHinge,float settle) {
-    // Shade the moving half towards the hinge instead of blending the flat half into it: a
-    // crossfade shows the folded picture and the flat one at once, which reads as a double image.
-    // The shading stops well short of black so the crease reads as a soft edge, not a cut.
-    float strength=smoothstep(DIM_START-25.0,DIM_FULL,uFoldDegrees)*(1.0-settle);
-    float shade=mix(0.45,1.0,smoothstep(0.0,HINGE_FEATHER,fromHinge));
-    return colour*mix(1.0,shade,strength);
+vec3 feathered(vec3 colour,vec2 uv,float fromHinge,float settle) {
+    // The band closes up as the reflection becomes a true 1:1 mirror, where the seam is already
+    // continuous and a fuzzy strip would show as a ghost.
+    return mix(readScreen(uv),colour,smoothstep(0.0,HINGE_FEATHER*(1.0-settle)+0.001,fromHinge));
 }
 
 void main() {
@@ -167,14 +163,11 @@ void main() {
     } else if(uEffectStyle==4) {
         radiusPoints=0.0;attenuation=1.0;
     }
-    // Blur towards the crease so the two halves fade into each other instead of meeting at a
-    // line. Blurring the moving half's own picture cannot produce a double image.
-    radiusPoints+=HINGE_BLUR*(1.0-smoothstep(0.0,HINGE_FEATHER,fromHinge))*(1.0-settle);
     radiusPoints*=(1.0-settle);
     attenuation=mix(attenuation,1.0,settle);
 
     if(radiusPoints<0.5) {
-        gl_FragColor=vec4(creased(litFold(readScreen(leafToUv(samplePoint))*attenuation),fromHinge,settle)*ramp,ramp);return;
+        gl_FragColor=vec4(feathered(litFold(readScreen(leafToUv(samplePoint))*attenuation),vUv,fromHinge,settle)*ramp,ramp);return;
     }
     float taps=clamp(floor(radiusPoints*3.0),8.0,48.0);
     float rotation=uEffectStyle==2?0.0:hash21(vUv*uSizePoints)*6.28318530718;
@@ -189,5 +182,5 @@ void main() {
         sum+=weight*readScreen(leafToUv(tap));
         weights+=weight;
     }
-    gl_FragColor=vec4(creased(litFold(sum/weights*attenuation),fromHinge,settle)*ramp,ramp);
+    gl_FragColor=vec4(feathered(litFold(sum/weights*attenuation),vUv,fromHinge,settle)*ramp,ramp);
 }
