@@ -119,6 +119,19 @@ public final class FoldService extends AccessibilityService {
         releaseSession(reason);
         scheduleResume();
     }
+    /**
+     * A capture that returns no buffer once is usually the panel reconfiguring while the fold
+     * starts. Retry a few times before giving up, and log the angle so the cause is visible.
+     */
+    private void captureRefused(String reason) {
+        if(captureRetries<3) {
+            captureRetries++;
+            android.util.Log.w("DuoFold","capture refused at "+lastForward+" deg, retry #"+captureRetries);
+            main.postDelayed(this::recoverCapture,400);
+            return;
+        }
+        sessionFailed(reason);
+    }
     private void sessionFailed(String reason) {
         // Capture/heartbeat errors can arrive before SCREEN_OFF on vendor ROMs.
         if(recovery!=null && recovery.requested() && (!screenUsable() || recovery.canRetry())) suspendSession(reason);
@@ -330,6 +343,7 @@ public final class FoldService extends AccessibilityService {
                 && lastForward>PREROLL_DEGREES && view!=null) {
             beginCapture(captureSurface,captureWidth,captureHeight);
         }
+        if(layerAttached && displaySizeChanged()) {rebuildLayer();return;}
         boolean want=folded && innerDisplayActive() && allowed;
         if(want!=layerWanted) android.util.Log.i("DuoFold","sync want="+want
                 +" forward="+lastForward+" inner="+innerDisplayActive()+" host="+(glassHost!=null));
@@ -378,7 +392,14 @@ public final class FoldService extends AccessibilityService {
         captureReady=false;captureStarting=false;
         try {IFoldBridge bridge=client.service();if(bridge!=null)bridge.stop();}catch(Exception ignored){}
     }
+    /** True when the panel is no longer the size the current layer was built for. */
+    private boolean displaySizeChanged() {
+        android.util.DisplayMetrics metrics=new android.util.DisplayMetrics();
+        wm.getDefaultDisplay().getRealMetrics(metrics);
+        return metrics.widthPixels!=preparedWidth || metrics.heightPixels!=preparedHeight;
+    }
     private SurfaceControl preparedControl;
+    private int preparedWidth,preparedHeight;
     private boolean layerAttached;
 
     /**
@@ -422,6 +443,7 @@ public final class FoldService extends AccessibilityService {
                 if(bridge!=null) bridge.makeGlassPassThrough(control);
             } catch(Exception error) {android.util.Log.w("DuoFold","pass-through",error);}
             glassLayer=control;preparedControl=control;layerAttached=false;
+            preparedWidth=w;preparedHeight=h;
             android.util.Log.i("DuoFold","layer prepared in "+(SystemClock.uptimeMillis()-startedPrepare)+"ms "+w+"x"+h);
         } catch(Throwable error) {
             android.util.Log.e("DuoFold","prepare layer",error);
@@ -431,6 +453,13 @@ public final class FoldService extends AccessibilityService {
 
     /** Shows the prepared layer and starts the mirror. */
     private void attachLayer() {
+        // Half-open posture can switch the inner panel to a different rotation, and a layer
+        // built for the old size is cropped to nothing (it stays invisible). Rebuild to match.
+        if(preparedControl!=null && displaySizeChanged()) {
+            android.util.Log.i("DuoFold","display size changed, rebuilding layer");
+            releaseGlassHost();
+            prepareLayer();
+        }
         SurfaceControl control=preparedControl;
         if(control==null) return;
         try {
@@ -510,7 +539,11 @@ public final class FoldService extends AccessibilityService {
                             }
                         });
                     }
-                    @Override public void onError(String message) {main.post(()->{if(session==generation) sessionFailed(message);});}
+                    @Override public void onError(String message) {main.post(()->{
+                        if(session!=generation) return;
+                        if(message!=null && message.contains("denied screen capture")) captureRefused(message);
+                        else sessionFailed(message);
+                    });}
                 });
             } catch(Exception e) {main.post(()->{if(session==generation) sessionFailed(e.toString());});}
             finally {main.post(()->captureStarting=false);}
