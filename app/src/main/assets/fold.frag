@@ -145,11 +145,12 @@ void main() {
     // Past the right angle the two halves come together again, so the reflection loses the
     // compression and the blur and ends up as clear as the flat screen.
     float settle=smoothstep(DIM_FULL,CLEAR_FULL,uFoldDegrees);
-    // Towards the hinge the sampling converges on the flat point, so the moving half reads the
-    // same source as the static half there. That is what lets the crease crossfade without the
-    // two pictures drifting apart into a double image.
+    // The effect hands over to the static half at the crease: the sampling converges on the flat
+    // point, the blur and the shading fade out, so both sides of the seam show the same picture
+    // at the same sharpness. A crossfade of two pictures that differ in either way is a ghost.
+    float crease=1.0-smoothstep(0.0,HINGE_FEATHER,fromHinge);
     float flatPoint=(uFoldDegrees>DIM_FULL)?1.0:0.0;
-    float pull=max(1.0-smoothstep(0.0,HINGE_FEATHER*2.0,fromHinge),settle);
+    float pull=max(crease,settle);
     vec2 targetPoint=mix(p,vec2(p.x,-p.y),flatPoint);
     vec2 samplePoint=mix(mirrorPoint(hitP),targetPoint,pull);
 
@@ -169,7 +170,8 @@ void main() {
     } else if(uEffectStyle==4) {
         radiusPoints=0.0;attenuation=1.0;
     }
-    radiusPoints*=(1.0-settle);
+    radiusPoints*=(1.0-settle)*(1.0-crease);
+    attenuation=mix(attenuation,1.0,crease);
     attenuation=mix(attenuation,1.0,settle);
 
     if(radiusPoints<0.5) {
