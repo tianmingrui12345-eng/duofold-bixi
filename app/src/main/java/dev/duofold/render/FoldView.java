@@ -62,6 +62,8 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
     private static final float GAIN_TAU=0.09f;
     private float gain;
     private long gainNanos;
+    /** Real fold in degrees (0 flat, 180 closed): the rendered angle is scaled and tops out at 80. */
+    private volatile float realFoldDegrees;
     private volatile float smoothForward;
     private float smoothSide;
     private long smoothNanos;
@@ -70,8 +72,8 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
     public float smoothedDegrees() {return (float)Math.toDegrees(smoothForward);}
 
     /** Called on every sensor event; the value is smoothed per frame before rendering. */
-    public void setFold(float forwardRadians,float sideRadians,float intensity) {
-        targetForward=forwardRadians;targetSide=sideRadians;targetIntensity=intensity;
+    public void setFold(float forwardRadians,float sideRadians,float intensity,float realDegrees) {
+        targetForward=forwardRadians;targetSide=sideRadians;targetIntensity=intensity;realFoldDegrees=realDegrees;
         requestRender();
     }
     public void setEffectStyle(EffectStyle style) {
@@ -160,9 +162,7 @@ public final class FoldView extends android.opengl.GLSurfaceView implements andr
             scalar("uCornerRadius",dev.duofold.EffectPrefs.cornerRadius);
             scalar("uCornerPower",dev.duofold.EffectPrefs.cornerPower);
             // 0.4 fold look: dark by 90 degrees, reflection of the static half past it.
-            scalar("uFoldDegrees",foldDegrees);
-            scalar("uDimStart",70f);
-            scalar("uReflFull",112f);
+            scalar("uFoldDegrees",realFoldDegrees);
             // Landscape: the hinge line turns vertical, so the leaf is the left (rotation 90)
             // or right (rotation 270) half of the panel.
             boolean landscape=width>height;

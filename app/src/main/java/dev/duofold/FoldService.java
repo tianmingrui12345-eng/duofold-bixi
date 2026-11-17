@@ -196,7 +196,7 @@ public final class FoldService extends AccessibilityService {
                 lastForward=unfolded;
                 if(view!=null && active) view.setFold(
                         (float)Math.toRadians(effective),(float)Math.toRadians(sideDegrees),
-                        dev.duofold.EffectPrefs.intensity);
+                        dev.duofold.EffectPrefs.intensity,unfolded);
                 syncLayer();
             };
             sensor=new HingeTiltSensor(this,pose);
