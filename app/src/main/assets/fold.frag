@@ -28,6 +28,8 @@ const float DIM_START=60.0;
 const float DIM_FULL=88.0;
 const float REFL_FULL=118.0;
 const float HINGE_FEATHER=45.0;
+// Fully closed, the reflection is the same picture as a flat screen: no compression, no blur.
+const float CLEAR_FULL=178.0;
 varying vec2 vUv;
 
 /**
@@ -95,8 +97,10 @@ vec3 litFold(vec3 base) {
  * Crossfades the moving half into the static half over the last points before the hinge: the
  * darkened upper half otherwise meets the untouched lower half in a hard line.
  */
-vec3 feathered(vec3 colour,vec2 uv,float fromHinge) {
-    return mix(readScreen(uv),colour,smoothstep(0.0,HINGE_FEATHER,fromHinge));
+vec3 feathered(vec3 colour,vec2 uv,float fromHinge,float settle) {
+    // The band closes up as the reflection becomes a true 1:1 mirror, where the seam is already
+    // continuous and a fuzzy strip would show as a ghost.
+    return mix(readScreen(uv),colour,smoothstep(0.0,HINGE_FEATHER*(1.0-settle)+0.001,fromHinge));
 }
 
 void main() {
@@ -138,6 +142,11 @@ void main() {
     vec2 hitP=vec2(p.x,d)*(1920.0/depth);
     hitP.x*=1.0+uSideSlant*clamp(d/max(halfLeaf,1.0),0.0,1.0);
 
+    // Past the right angle the two halves come together again, so the reflection loses the
+    // compression and the blur and ends up as clear as the flat screen.
+    float settle=smoothstep(DIM_FULL,CLEAR_FULL,uFoldDegrees);
+    vec2 samplePoint=mix(mirrorPoint(hitP),vec2(p.x,-p.y),settle);
+
     float radiusPoints=0.12*gap*uIntensity*blurRamp;
     float attenuation=max(1.0-0.015*radiusPoints,0.0);
     if(uEffectStyle==1) {
@@ -154,9 +163,11 @@ void main() {
     } else if(uEffectStyle==4) {
         radiusPoints=0.0;attenuation=1.0;
     }
+    radiusPoints*=(1.0-settle);
+    attenuation=mix(attenuation,1.0,settle);
 
     if(radiusPoints<0.5) {
-        gl_FragColor=vec4(feathered(litFold(readScreen(leafToUv(mirrorPoint(hitP)))*attenuation),vUv,fromHinge)*ramp,ramp);return;
+        gl_FragColor=vec4(feathered(litFold(readScreen(leafToUv(samplePoint))*attenuation),vUv,fromHinge,settle)*ramp,ramp);return;
     }
     float taps=clamp(floor(radiusPoints*3.0),8.0,48.0);
     float rotation=uEffectStyle==2?0.0:hash21(vUv*uSizePoints)*6.28318530718;
@@ -167,9 +178,9 @@ void main() {
         float r=sqrt((float(i)+0.5)/taps);
         float a=float(i)*2.39996322973+rotation;
         float weight=uEffectStyle==2?exp(-3.0*r*r):1.0;
-        vec2 tap=hitP+radiusPoints*r*vec2(cos(a),sin(a));
-        sum+=weight*readScreen(leafToUv(mirrorPoint(tap)));
+        vec2 tap=samplePoint+radiusPoints*r*vec2(cos(a),sin(a));
+        sum+=weight*readScreen(leafToUv(tap));
         weights+=weight;
     }
-    gl_FragColor=vec4(feathered(litFold(sum/weights*attenuation),vUv,fromHinge)*ramp,ramp);
+    gl_FragColor=vec4(feathered(litFold(sum/weights*attenuation),vUv,fromHinge,settle)*ramp,ramp);
 }
